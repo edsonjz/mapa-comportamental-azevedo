@@ -51,37 +51,48 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Print / PDF Stylesheet */
+/* Print / PDF Stylesheet Fix - Ensures ONLY the report document is printed cleanly without repeating pages */
 @media print {
-  body {
+  /* Hide all elements on body during print */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Make report printable area visible */
+  #report-printable-area, #report-printable-area * {
+    visibility: visible !important;
+  }
+
+  /* Position printable area at top left of print output */
+  #report-printable-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     background-color: #ffffff !important;
     color: #0f172a !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
   }
 
+  /* Hide header controls and buttons during PDF print */
   .no-print {
     display: none !important;
+    visibility: hidden !important;
   }
 
-  .print-only {
-    display: block !important;
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   .print-page-break {
-    page-break-after: always;
-  }
-
-  .card-print {
-    border: 1px solid #cbd5e1 !important;
-    box-shadow: none !important;
-    background: #ffffff !important;
-    color: #0f172a !important;
-  }
-
-  .text-print-dark {
-    color: #0f172a !important;
-  }
-
-  .bg-print-light {
-    background-color: #f8fafc !important;
+    page-break-after: always !important;
   }
 }

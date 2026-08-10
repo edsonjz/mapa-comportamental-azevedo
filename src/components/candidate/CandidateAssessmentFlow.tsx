@@ -125,7 +125,10 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 dark:bg-slate-950 light:bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-100 dark:text-slate-100 light:text-slate-900 transition-colors">
+      <div className="min-h-screen bg-slate-950 dark:bg-slate-950 light:bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-100 dark:text-slate-100 light:text-slate-900 transition-colors relative">
+        <div className="absolute top-4 right-4 z-20">
+          <ThemeToggle />
+        </div>
         <div className="w-12 h-12 border-4 border-slate-600 border-t-slate-200 rounded-full animate-spin mb-4"></div>
         <p className="text-slate-400 font-medium text-xs">Carregando questionário de avaliação...</p>
       </div>
@@ -134,7 +137,10 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
 
   if (error && !questions.length) {
     return (
-      <div className="min-h-screen bg-slate-950 dark:bg-slate-950 light:bg-slate-50 flex items-center justify-center p-6 transition-colors">
+      <div className="min-h-screen bg-slate-950 dark:bg-slate-950 light:bg-slate-50 flex items-center justify-center p-6 transition-colors relative">
+        <div className="absolute top-4 right-4 z-20">
+          <ThemeToggle />
+        </div>
         <div className="bg-slate-900 dark:bg-slate-900 light:bg-white border border-slate-800 dark:border-slate-800 light:border-slate-200 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl">
           <div className="w-16 h-16 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
             <AlertCircle className="w-8 h-8" />
@@ -184,17 +190,19 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
         </div>
         <div className="bg-slate-900 dark:bg-slate-900 light:bg-white border border-slate-800 dark:border-slate-800 light:border-slate-200 rounded-3xl max-w-2xl w-full p-6 sm:p-10 shadow-2xl relative overflow-hidden">
           
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-slate-800 dark:bg-slate-800 light:bg-slate-900 border border-slate-700 text-slate-100 font-bold flex items-center justify-center">
-              MA
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                Mapa Comportamental
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                Azevedo
-              </p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-800 dark:bg-slate-800 light:bg-slate-900 border border-slate-700 text-slate-100 font-bold flex items-center justify-center">
+                MA
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                  Mapa Comportamental
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                  Azevedo
+                </p>
+              </div>
             </div>
           </div>
 
@@ -221,6 +229,7 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
               <li>Apresentaremos 40 cenários reais enfrentados diariamente em operações de atendimento.</li>
               <li>Não existem respostas certas ou erradas. Escolha a alternativa que melhor representa seu comportamento habitual de trabalho.</li>
               <li>Seu progresso é salvo automaticamente a cada resposta. Você pode navegar entre as questões antes de finalizar.</li>
+              <li>Você pode alternar entre o <strong>Modo Claro</strong> e <strong>Modo Escuro</strong> usando o botão no canto superior direito.</li>
             </ul>
           </div>
 

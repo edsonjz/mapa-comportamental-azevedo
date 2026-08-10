@@ -7,7 +7,7 @@ import { ThemeToggle } from '../common/ThemeToggle';
 import { PROFILES_CATALOG } from '../../lib/profilesData';
 import { 
   Users, CheckCircle2, Clock, PlayCircle, Plus, Search, Filter, Copy, Check, Eye, Trash2, 
-  LogOut, History, RefreshCw, X, UserPlus, Link2, FileSpreadsheet
+  LogOut, History, RefreshCw, X, UserPlus, Link2, FileSpreadsheet, BookOpen, UserCheck
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -19,6 +19,8 @@ type AssessmentWithCandidate = Assessment & {
   candidate?: Candidate;
   score?: AssessmentScores;
 };
+
+const MASTER_ADMIN_EMAIL = 'edsonjz@gmail.com';
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
@@ -33,6 +35,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   // Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
+  const [showCreateRecruiterModal, setShowCreateRecruiterModal] = useState(false);
   const [selectedAssessmentForReport, setSelectedAssessmentForReport] = useState<AssessmentWithCandidate | null>(null);
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -46,6 +50,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [creating, setCreating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // New Recruiter Form State (Master only)
+  const [newRecruiterName, setNewRecruiterName] = useState('');
+  const [newRecruiterEmail, setNewRecruiterEmail] = useState('');
+  const [newRecruiterPassword, setNewRecruiterPassword] = useState('');
+  const [creatingRecruiter, setCreatingRecruiter] = useState(false);
+
+  const isMasterAdmin = user?.email?.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
 
   useEffect(() => {
     fetchRecruiterData();
@@ -152,6 +164,48 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     }
   };
 
+  const handleCreateNewRecruiter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isMasterAdmin) {
+      alert('Apenas o Recrutador Master pode criar novas contas de recrutador.');
+      return;
+    }
+    if (!newRecruiterEmail.trim() || !newRecruiterPassword.trim()) return;
+
+    setCreatingRecruiter(true);
+    try {
+      const { data, error: signUpErr } = await supabase.auth.signUp({
+        email: newRecruiterEmail.trim(),
+        password: newRecruiterPassword.trim(),
+        options: {
+          data: { name: newRecruiterName.trim() || 'Novo Recrutador' }
+        }
+      });
+
+      if (signUpErr) throw signUpErr;
+
+      if (data.user) {
+        await supabase.from('recruiters').upsert({
+          id: data.user.id,
+          name: newRecruiterName.trim() || newRecruiterEmail.split('@')[0],
+          email: newRecruiterEmail.trim(),
+          role: 'recruiter'
+        });
+      }
+
+      alert(`Conta de recrutador criada com sucesso para ${newRecruiterEmail}!`);
+      setNewRecruiterName('');
+      setNewRecruiterEmail('');
+      setNewRecruiterPassword('');
+      setShowCreateRecruiterModal(false);
+    } catch (err: any) {
+      console.error('Erro ao cadastrar recrutador:', err);
+      alert(`Falha ao cadastrar recrutador: ${err.message || 'Erro de autenticação'}`);
+    } finally {
+      setCreatingRecruiter(false);
+    }
+  };
+
   const handleDeleteAssessment = async (assessmentItem: AssessmentWithCandidate) => {
     const candidateName = assessmentItem.candidate?.name || 'este candidato';
     if (!confirm(`Tem certeza que deseja excluir a avaliação e o registro de "${candidateName}"?`)) return;
@@ -251,6 +305,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           <ThemeToggle />
 
           <button
+            onClick={() => setShowKnowledgeModal(true)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 text-xs font-semibold border border-blue-200 dark:border-slate-700 transition-colors cursor-pointer"
+            title="Base de Conhecimento das Métricas e Big Five"
+          >
+            <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>Guia de Métricas</span>
+          </button>
+
+          {isMasterAdmin && (
+            <button
+              onClick={() => setShowCreateRecruiterModal(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-400 text-xs font-semibold border border-emerald-200 dark:border-slate-700 transition-colors cursor-pointer"
+              title="Cadastrar Novo Recrutador"
+            >
+              <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Criar Recrutador</span>
+            </button>
+          )}
+
+          <button
             onClick={fetchAuditLogs}
             className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
             title="Visualizar logs de auditoria"
@@ -262,11 +336,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center font-bold">
+            <span className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center font-bold relative">
               {recruiter?.name ? recruiter.name.substring(0, 2).toUpperCase() : 'R'}
+              {isMasterAdmin && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900" title="Recrutador Master"></span>
+              )}
             </span>
             <div className="hidden md:block text-left">
-              <div className="font-semibold text-slate-900 dark:text-slate-200">{recruiter?.name || user.email}</div>
+              <div className="font-semibold text-slate-900 dark:text-slate-200 flex items-center gap-1">
+                <span>{recruiter?.name || user.email}</span>
+                {isMasterAdmin && (
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">Master</span>
+                )}
+              </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400">Recrutador Autenticado</div>
             </div>
           </div>
@@ -693,7 +775,181 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
       )}
 
-      {/* Modal 2: Excel Import Modal */}
+      {/* Modal 2: Create Recruiter (Master Only) */}
+      {showCreateRecruiterModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  Cadastrar Novo Recrutador
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCreateRecruiterModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewRecruiter} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Nome Completo do Recrutador *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Carlos Andrade"
+                  value={newRecruiterName}
+                  onChange={(e) => setNewRecruiterName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-slate-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  E-mail de Trabalho *
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="recrutador@empresa.com"
+                  value={newRecruiterEmail}
+                  onChange={(e) => setNewRecruiterEmail(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-slate-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Senha Inicial de Acesso *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={newRecruiterPassword}
+                  onChange={(e) => setNewRecruiterPassword(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-slate-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateRecruiterModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-400 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={creatingRecruiter}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-xl text-xs transition-all flex items-center gap-2 cursor-pointer shadow-md"
+                >
+                  {creatingRecruiter ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <span>Cadastrar Recrutador</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Knowledge Base / Metrics Guide Modal */}
+      {showKnowledgeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  Base de Conhecimento: Guia Metodológico & Cálculo de Notas
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowKnowledgeModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                  1. O Modelo Psicométrico Big Five (OCEAN)
+                </h4>
+                <p>
+                  O mapa avalia 5 grandes fatores universais da personalidade adaptados ao ambiente de atendimento:
+                </p>
+                <ul className="mt-2 space-y-1.5 list-disc list-inside text-slate-600 dark:text-slate-400">
+                  <li><strong>Abertura a Experiências (O):</strong> Capacidade de aprendizado, flexibilidade com novos roteiros e sistemas.</li>
+                  <li><strong>Conscienciosidade (C):</strong> Rigor com normas operacionais, atenção aos detalhes e pontualidade.</li>
+                  <li><strong>Extroversão (E):</strong> Fluência verbal, assertividade na comunicação e facilidade em interagir.</li>
+                  <li><strong>Amabilidade (A):</strong> Empatia, escuta ativa, paciência e foco na resolução amigável de conflitos.</li>
+                  <li><strong>Estabilidade Emocional (ES):</strong> Resiliência, calma sob pressão e autocontrole em chamadas críticas.</li>
+                </ul>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  2. O que significam os Pontos Positivos e Negativos (+ / - pts)?
+                </h4>
+                <p className="mb-2">
+                  Na <strong>Simulação de Aderência a Cargos Operacionais</strong>, cada vaga de referência (ex: Atendimento Geral, Cobrança, SAC) possui uma meta ideal por competência. O número exibido indica a diferença (Delta) entre a nota do candidato e a meta do cargo:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-medium">
+                  <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                    <strong className="block mb-1 font-bold">+ Pontos (ex: +8 pts)</strong>
+                    O candidato <strong>supera</strong> a meta recomendada do cargo nessa competência. É um ponto forte diferencial.
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400">
+                    <strong className="block mb-1 font-bold">- Pontos (ex: -29 pts)</strong>
+                    O candidato pontua <strong>abaixo</strong> da meta ideal do cargo. Representa uma oportunidade de desenvolvimento ou ponto para explorar em entrevista.
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-400">
+                    <strong className="block mb-1 font-bold">Próximo a Zero (ex: -2 pts)</strong>
+                    O candidato está <strong>perfeitamente alinhado</strong> à expectativa ideal do cargo.
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  3. Aderência Global (%) e Classificação do Perfil
+                </h4>
+                <p>
+                  A aderência global calcula a distância estatística entre o perfil real do candidato e o perfil ideal do cargo. Notas acima de 80% indicam altíssima compatibilidade operacional, enquanto notas abaixo de 60% sinalizam necessidade de treinamento intensivo ou reorientação de função.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 text-right">
+              <button
+                onClick={() => setShowKnowledgeModal(false)}
+                className="bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white font-semibold px-6 py-2.5 rounded-xl text-xs cursor-pointer"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Excel Import Modal */}
       {showExcelImportModal && (
         <ExcelImportModal
           isOpen={showExcelImportModal}
@@ -703,7 +959,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         />
       )}
 
-      {/* Modal 3: Report Viewer */}
+      {/* Modal 5: Report Viewer */}
       {selectedAssessmentForReport && (
         <AssessmentReportModal
           assessment={selectedAssessmentForReport}
@@ -711,7 +967,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         />
       )}
 
-      {/* Modal 4: Audit Logs */}
+      {/* Modal 6: Audit Logs */}
       {showAuditLogs && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative">

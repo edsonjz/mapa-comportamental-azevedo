@@ -7,7 +7,7 @@ import { JOB_TARGET_PROFILES, PROFILES_CATALOG } from '../../lib/profilesData';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { 
   X, Printer, RefreshCw, FileText, AlertTriangle, 
-  Briefcase, HelpCircle, ShieldAlert, Sparkles, Building2, User, Calendar 
+  Briefcase, HelpCircle, ShieldAlert, Sparkles, Building2, User, Calendar, BookOpen, Info
 } from 'lucide-react';
 
 interface AssessmentReportModalProps {
@@ -20,6 +20,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
   const [scores, setScores] = useState<AssessmentScores | null>(null);
   const [recalculating, setRecalculating] = useState(false);
   const [selectedJobTarget, setSelectedJobTarget] = useState<string>('operador-padrao');
+  const [showGuide, setShowGuide] = useState<boolean>(false);
 
   useEffect(() => {
     fetchScores();
@@ -63,7 +64,11 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
   };
 
   const handlePrint = () => {
+    document.body.classList.add('printing-report');
     window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-report');
+    }, 1000);
   };
 
   const candidate = assessment.candidate;
@@ -94,6 +99,15 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
             <ThemeToggle />
 
             <button
+              onClick={() => setShowGuide(!showGuide)}
+              className="px-3 py-2 rounded-xl bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 text-xs font-medium border border-blue-200 dark:border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Entender cálculos, notas e deltas (+ / - pts)"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{showGuide ? 'Ocultar Guia' : 'Guia de Métricas'}</span>
+            </button>
+
+            <button
               onClick={handleRecalculate}
               disabled={recalculating}
               className="px-3 py-2 rounded-xl bg-slate-800 dark:bg-slate-800 light:bg-slate-200 hover:bg-slate-700 text-slate-300 dark:text-slate-300 light:text-slate-800 text-xs font-medium border border-slate-700 dark:border-slate-700 light:border-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -105,7 +119,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
 
             <button
               onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 light:bg-slate-900 light:hover:bg-slate-800 text-white text-xs font-semibold shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold shadow-md flex items-center gap-1.5 transition-all cursor-pointer border border-slate-700"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Imprimir / PDF</span>
@@ -121,7 +135,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
         </div>
 
         {/* Printable Report Body */}
-        <div className="p-4 sm:p-8 overflow-y-auto space-y-8 flex-1 bg-slate-900 dark:bg-slate-900 light:bg-slate-50 print:bg-white text-slate-100 dark:text-slate-100 light:text-slate-900 print:text-slate-900">
+        <div id="report-printable-area" className="p-4 sm:p-8 overflow-y-auto space-y-8 flex-1 bg-slate-900 dark:bg-slate-900 light:bg-slate-50 print:bg-white text-slate-100 dark:text-slate-100 light:text-slate-900 print:text-slate-900">
           
           {loading ? (
             <div className="py-20 text-center text-slate-400">
@@ -258,10 +272,18 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
 
               {/* Job Target Selector & Fit Analysis */}
               <div className="bg-slate-950/80 dark:bg-slate-950/80 light:bg-white border border-slate-800 dark:border-slate-800 light:border-slate-200 rounded-3xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                   <div>
-                    <h4 className="text-sm font-bold text-slate-200 dark:text-slate-200 light:text-slate-900">
-                      Simulação de Aderência a Cargos Operacionais
+                    <h4 className="text-sm font-bold text-slate-200 dark:text-slate-200 light:text-slate-900 flex items-center gap-2">
+                      <span>Simulação de Aderência a Cargos Operacionais</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowGuide(!showGuide)}
+                        className="text-blue-400 hover:text-blue-300 text-xs no-print flex items-center gap-1 cursor-pointer font-normal underline"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                        O que significam estes números?
+                      </button>
                     </h4>
                     <p className="text-xs text-slate-400 dark:text-slate-400 light:text-slate-600">
                       Selecione um perfil de referência para comparar as competências do candidato.
@@ -286,17 +308,95 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
                       { name: 'Extroversão (E)', diff: jobFit.extraversionDiff },
                       { name: 'Amabilidade (A)', diff: jobFit.agreeablenessDiff },
                       { name: 'Estabilidade Emocional (ES)', diff: jobFit.emotionalStabilityDiff },
-                    ].map((d, i) => (
-                      <div key={i} className="bg-slate-900 dark:bg-slate-900 light:bg-slate-100 border border-slate-800 dark:border-slate-800 light:border-slate-200 p-3 rounded-2xl text-center">
-                        <span className="text-[10px] text-slate-400 dark:text-slate-400 light:text-slate-600 block mb-1">{d.name}</span>
-                        <span className={`text-sm font-bold ${d.diff >= 0 ? 'text-emerald-400 dark:text-emerald-400 light:text-emerald-700' : 'text-amber-400 dark:text-amber-400 light:text-amber-700'}`}>
-                          {d.diff > 0 ? `+${d.diff}` : d.diff} pts
-                        </span>
-                      </div>
-                    ))}
+                    ].map((d, i) => {
+                      let statusText = 'Alinhado à Meta';
+                      let statusClass = 'text-blue-400 dark:text-blue-400 light:text-blue-700';
+
+                      if (d.diff > 3) {
+                        statusText = 'Supera a Meta';
+                        statusClass = 'text-emerald-400 dark:text-emerald-400 light:text-emerald-700';
+                      } else if (d.diff < -3) {
+                        statusText = 'Abaixo da Meta';
+                        statusClass = 'text-amber-400 dark:text-amber-400 light:text-amber-700';
+                      }
+
+                      return (
+                        <div key={i} className="bg-slate-900 dark:bg-slate-900 light:bg-slate-100 border border-slate-800 dark:border-slate-800 light:border-slate-200 p-3.5 rounded-2xl text-center">
+                          <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-400 light:text-slate-600 block mb-1">{d.name}</span>
+                          <span className={`text-base font-extrabold block ${statusClass}`}>
+                            {d.diff > 0 ? `+${d.diff}` : d.diff} pts
+                          </span>
+                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
+                            {statusText}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
+
+              {/* Collapsible Explanatory Knowledge Base Section */}
+              {(showGuide || true) && (
+                <div className="bg-slate-950/90 dark:bg-slate-950/90 light:bg-slate-100 border border-blue-500/20 dark:border-slate-800 light:border-slate-300 rounded-3xl p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-800 dark:border-slate-800 light:border-slate-200 pb-3">
+                    <BookOpen className="w-5 h-5 text-blue-400" />
+                    <h4 className="text-sm font-bold text-slate-100 dark:text-slate-100 light:text-slate-900">
+                      Guia de Interpretação das Métricas & Deltas (+ / - pts)
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs leading-relaxed text-slate-300 dark:text-slate-300 light:text-slate-700">
+                    {/* Column 1: Porcentagens */}
+                    <div className="bg-slate-900 dark:bg-slate-900 light:bg-white p-4 rounded-2xl border border-slate-800 dark:border-slate-800 light:border-slate-200">
+                      <h5 className="font-bold text-slate-100 dark:text-slate-100 light:text-slate-900 mb-2 text-xs flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        1. Porcentagens de Fator (0% a 100%)
+                      </h5>
+                      <p className="mb-2 text-[11px]">
+                        Indicam a intensidade natural do candidato em cada uma das 5 dimensões psicométricas:
+                      </p>
+                      <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-400 dark:text-slate-400 light:text-slate-600">
+                        <li><strong className="text-slate-200 dark:text-slate-200 light:text-slate-900">&lt; 40% (Baixo):</strong> Menor alinhamento com a característica. Ex: Conscienciosidade baixa indica perfil informal e espontâneo.</li>
+                        <li><strong className="text-slate-200 dark:text-slate-200 light:text-slate-900">40% a 65% (Moderado):</strong> Nível equilibrado e adaptável conforme a exigência do momento.</li>
+                        <li><strong className="text-slate-200 dark:text-slate-200 light:text-slate-900">&gt; 65% (Alto):</strong> Forte inclinação natural àquela competência no dia a dia.</li>
+                      </ul>
+                    </div>
+
+                    {/* Column 2: O que são os Deltas + / - pts */}
+                    <div className="bg-slate-900 dark:bg-slate-900 light:bg-white p-4 rounded-2xl border border-slate-800 dark:border-slate-800 light:border-slate-200">
+                      <h5 className="font-bold text-slate-100 dark:text-slate-100 light:text-slate-900 mb-2 text-xs flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        2. Entendendo os Deltas (+ / - pts)
+                      </h5>
+                      <p className="mb-2 text-[11px]">
+                        O Delta é a diferença exata entre a nota do candidato e a meta exigida pelo cargo selecionado:
+                      </p>
+                      <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-400 dark:text-slate-400 light:text-slate-600">
+                        <li><strong className="text-emerald-400">Positivo (ex: +8 pts):</strong> O candidato ultrapassa a nota recomendada. É um <strong>diferencial / ponto forte</strong>.</li>
+                        <li><strong className="text-amber-400">Negativo (ex: -29 pts):</strong> O candidato pontua abaixo do esperado para a vaga. É uma <strong>oportunidade de desenvolvimento</strong>.</li>
+                        <li><strong className="text-blue-400">Próximo a Zero (ex: -2 pts):</strong> Perfeita sintonia com o perfil ideal recomendado.</li>
+                      </ul>
+                    </div>
+
+                    {/* Column 3: Porcentagem de Aderência */}
+                    <div className="bg-slate-900 dark:bg-slate-900 light:bg-white p-4 rounded-2xl border border-slate-800 dark:border-slate-800 light:border-slate-200">
+                      <h5 className="font-bold text-slate-100 dark:text-slate-100 light:text-slate-900 mb-2 text-xs flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                        3. Aderência Global (%)
+                      </h5>
+                      <p className="mb-2 text-[11px]">
+                        Índice final de compatibilidade do candidato com o cargo de referência:
+                      </p>
+                      <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-400 dark:text-slate-400 light:text-slate-600">
+                        <li><strong className="text-slate-200 dark:text-slate-200 light:text-slate-900">&ge; 80%:</strong> Altíssima compatibilidade. Rápida adaptação e alto desempenho projetado.</li>
+                        <li><strong className="text-slate-200 dark:text-slate-200 light:text-slate-900">60% a 79%:</strong> Boa aderência com pontos pontuais a acompanhar em treinamento.</li>
+                        <li><strong className="text-slate-200 dark:text-slate-200 light:text-slate-900">&lt; 60%:</strong> Exige validação aprofundada ou reavaliação para outro cargo.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Suggested Interview Questions */}
               <div className="bg-slate-950/80 dark:bg-slate-950/80 light:bg-white border border-slate-800 dark:border-slate-800 light:border-slate-200 rounded-3xl p-6 shadow-sm">

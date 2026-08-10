@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ThemeToggle } from '../common/ThemeToggle';
-import { Lock, Mail, User, ShieldCheck, AlertCircle, ArrowRight } from 'lucide-react';
+import { Lock, Mail, User, ShieldCheck, AlertCircle, ArrowRight, ShieldAlert } from 'lucide-react';
 
 interface RecruiterAuthProps {
   onSuccess: () => void;
 }
+
+const MASTER_ADMIN_EMAIL = 'edsonjz@gmail.com';
 
 export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -21,19 +23,28 @@ export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
     setLoading(true);
     setError(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
       if (mode === 'login') {
         const { error: authErr } = await supabase.auth.signInWithPassword({
-          email,
+          email: cleanEmail,
           password
         });
         if (authErr) throw authErr;
       } else {
+        // Registration rule: Only master recruiter (edsonjz@gmail.com) can create recruiter accounts
+        if (cleanEmail !== MASTER_ADMIN_EMAIL.toLowerCase()) {
+          setError(`Permissão negada. Apenas o Recrutador Master (${MASTER_ADMIN_EMAIL}) tem autorização para cadastrar novas contas.`);
+          setLoading(false);
+          return;
+        }
+
         const { data, error: authErr } = await supabase.auth.signUp({
-          email,
+          email: cleanEmail,
           password,
           options: {
-            data: { name }
+            data: { name: name.trim() || 'Recrutador Master' }
           }
         });
         if (authErr) throw authErr;
@@ -41,9 +52,9 @@ export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
         if (data.user) {
           await supabase.from('recruiters').upsert({
             id: data.user.id,
-            name: name || email.split('@')[0],
-            email: email,
-            role: 'recruiter'
+            name: name.trim() || 'Edson Azevedo',
+            email: cleanEmail,
+            role: 'master_admin'
           });
         }
       }
@@ -83,7 +94,10 @@ export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
         <div className="bg-slate-950/80 dark:bg-slate-950/80 light:bg-slate-100 p-1 rounded-xl border border-slate-800 dark:border-slate-800 light:border-slate-300 flex gap-1 mb-6">
           <button
             type="button"
-            onClick={() => setMode('login')}
+            onClick={() => {
+              setMode('login');
+              setError(null);
+            }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               mode === 'login'
                 ? 'bg-slate-800 dark:bg-slate-800 light:bg-slate-900 text-white shadow-sm'
@@ -94,7 +108,10 @@ export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
           </button>
           <button
             type="button"
-            onClick={() => setMode('signup')}
+            onClick={() => {
+              setMode('signup');
+              setError(null);
+            }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               mode === 'signup'
                 ? 'bg-slate-800 dark:bg-slate-800 light:bg-slate-900 text-white shadow-sm'
@@ -104,6 +121,15 @@ export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
             Criar Conta Recrutador
           </button>
         </div>
+
+        {mode === 'signup' && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 dark:text-amber-300 light:text-amber-800 p-3 rounded-xl text-xs mb-4 flex items-start gap-2.5">
+            <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Cadastro restrito ao Recrutador Master <strong>({MASTER_ADMIN_EMAIL})</strong>.
+            </span>
+          </div>
+        )}
 
         {error && (
           <div className="bg-rose-500/10 dark:bg-rose-500/10 light:bg-rose-50 border border-rose-500/20 text-rose-400 dark:text-rose-400 light:text-rose-700 p-3.5 rounded-xl text-xs mb-6 flex items-center gap-3">
@@ -184,7 +210,7 @@ export const RecruiterAuth: React.FC<RecruiterAuthProps> = ({ onSuccess }) => {
 
         <div className="mt-8 pt-6 border-t border-slate-800/80 dark:border-slate-800/80 light:border-slate-200 text-center">
           <p className="text-[11px] text-slate-500 dark:text-slate-500 light:text-slate-600">
-            Acesso exclusivo para profissionais de R&S e Gestão de Pessoas.
+            Acesso exclusivo para profissionais de R&S e Gestão de Pessoas Azevedo.
           </p>
         </div>
       </div>
