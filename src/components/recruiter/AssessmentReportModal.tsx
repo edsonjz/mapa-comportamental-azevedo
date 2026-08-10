@@ -63,15 +63,111 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
     }
   };
 
+  const candidate = assessment.candidate;
+
   const handlePrint = () => {
-    document.body.classList.add('printing-report');
-    window.print();
+    const printElement = document.getElementById('report-printable-area');
+    if (!printElement) {
+      window.print();
+      return;
+    }
+
+    // Create a hidden print iframe
+    let iframe = document.getElementById('report-print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'report-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    // Extract all stylesheet tags
+    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(s => s.outerHTML)
+      .join('\n');
+
+    const candidateName = candidate?.name || 'Candidato';
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Relatorio_Comportamental_${candidateName.replace(/\s+/g, '_')}_Azevedo</title>
+          ${styleTags}
+          <style>
+            html, body {
+              background-color: #ffffff !important;
+              color: #0f172a !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+              height: auto !important;
+              min-height: 0 !important;
+              max-height: none !important;
+              overflow: visible !important;
+            }
+            .no-print { display: none !important; }
+            * {
+              overflow: visible !important;
+              max-height: none !important;
+              box-shadow: none !important;
+            }
+            #report-printable-area {
+              display: block !important;
+              width: 100% !important;
+              height: auto !important;
+              max-height: none !important;
+              overflow: visible !important;
+              padding: 24px !important;
+              background-color: #ffffff !important;
+              color: #0f172a !important;
+            }
+            .bg-slate-900, .bg-slate-950, .bg-slate-950\\/80, .bg-slate-900\\/90, .bg-slate-50, .bg-slate-100 {
+              background-color: #ffffff !important;
+              color: #0f172a !important;
+            }
+            .border-slate-800, .border-slate-700, .border-slate-200 {
+              border-color: #cbd5e1 !important;
+            }
+            .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-900, .text-white {
+              color: #0f172a !important;
+            }
+            .text-slate-400, .text-slate-500, .text-slate-600 {
+              color: #475569 !important;
+            }
+            @page {
+              size: A4 portrait;
+              margin: 12mm;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="report-printable-area">
+            ${printElement.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
     setTimeout(() => {
-      document.body.classList.remove('printing-report');
-    }, 1000);
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    }, 450);
   };
 
-  const candidate = assessment.candidate;
   const jobFit = scores ? calculateJobProfileCompatibility(scores, selectedJobTarget) : null;
   const primaryProfileCatalog = scores?.primary_profile ? PROFILES_CATALOG[scores.primary_profile] : null;
 
