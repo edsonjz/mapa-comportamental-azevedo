@@ -124,8 +124,10 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
               max-height: none !important;
               box-shadow: none !important;
             }
-            #report-printable-area {
+            body > #report-printable-area {
               display: block !important;
+              visibility: visible !important;
+              opacity: 1 !important;
               width: 100% !important;
               height: auto !important;
               max-height: none !important;
