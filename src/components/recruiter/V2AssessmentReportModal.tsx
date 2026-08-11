@@ -8,7 +8,7 @@ import { V2_JOB_NAMES, getV2JobProfile } from '../../lib/v2/jobProfilesV2';
 import { V2_DISCLAIMER } from '../../lib/v2/scoringEngineV2';
 import {
   X, CheckCircle2, AlertTriangle, ShieldCheck, Brain, Target, MessageSquare,
-  TrendingUp, Award, HelpCircle, Layers, FileText, UserCheck, AlertCircle, RefreshCw
+  TrendingUp, Award, Layers, AlertCircle
 } from 'lucide-react';
 
 interface V2AssessmentReportModalProps {
@@ -21,7 +21,7 @@ interface V2AssessmentReportModalProps {
 }
 
 export const V2AssessmentReportModal: React.FC<V2AssessmentReportModalProps> = ({
-  assessmentId, candidateName, targetJobId, createdAt, completedAt, onClose
+  assessmentId, candidateName, targetJobId, onClose
 }) => {
   const [loading, setLoading] = useState(true);
   const [reportData, setReportData] = useState<any>(null);
@@ -371,7 +371,15 @@ export const V2AssessmentReportModal: React.FC<V2AssessmentReportModalProps> = (
                       <Brain className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       <span>Interesses Profissionais (RIASEC)</span>
                     </h3>
-                    <RiasecBarChart scores={reportData.riasec.scores} />
+                    <RiasecBarChart
+                      rScore={reportData.riasec.scores.R || 0}
+                      iScore={reportData.riasec.scores.I || 0}
+                      aScore={reportData.riasec.scores.A || 0}
+                      sScore={reportData.riasec.scores.S || 0}
+                      eScore={reportData.riasec.scores.E || 0}
+                      cScore={reportData.riasec.scores.C || 0}
+                      code={reportData.riasec.riasecCode}
+                    />
                   </div>
                 </div>
               )}

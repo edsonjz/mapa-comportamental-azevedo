@@ -1,5 +1,6 @@
 import React from 'react';
-import { MOTIVATOR_NAMES, MotivatorKey } from '../../lib/v2/riasecMotivationQuestions';
+import { MOTIVATOR_NAMES } from '../../lib/v2/riasecMotivationQuestions';
+import type { MotivatorKey } from '../../lib/v2/riasecMotivationQuestions';
 
 interface V2MotivatorChartProps {
   scores: Record<string, number>;

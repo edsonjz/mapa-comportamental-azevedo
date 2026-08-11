@@ -6,11 +6,9 @@ import {
   calculateSjtScores,
   calculateCompetencyScores,
   calculateReliability,
-  calculateFit,
-  calculateFullV2Assessment,
-  V2AnswerInput
+  calculateFullV2Assessment
 } from '../scoringEngineV2';
-import { V2_JOB_PROFILES, getV2JobProfile } from '../jobProfilesV2';
+import type { V2AnswerInput } from '../scoringEngineV2';
 import { V2_BEHAVIOR_QUESTIONS } from '../behaviorQuestions';
 import { V2_RIASEC_MOTIVATION_QUESTIONS } from '../riasecMotivationQuestions';
 import { SJT_QUESTIONS_BY_JOB } from '../sjtQuestions';

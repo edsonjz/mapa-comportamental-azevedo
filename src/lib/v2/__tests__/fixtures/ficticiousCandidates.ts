@@ -9,11 +9,11 @@
  * - Baixa Aderência
  */
 
-import { V2_JOB_PROFILES } from '../jobProfilesV2';
-import { V2_BEHAVIOR_QUESTIONS } from '../behaviorQuestions';
-import { V2_RIASEC_MOTIVATION_QUESTIONS } from '../riasecMotivationQuestions';
-import { SJT_QUESTIONS_BY_JOB } from '../sjtQuestions';
-import { calculateFullV2Assessment, V2AnswerInput, V2AssessmentResult } from '../scoringEngineV2';
+import { V2_BEHAVIOR_QUESTIONS } from '../../behaviorQuestions';
+import { V2_RIASEC_MOTIVATION_QUESTIONS } from '../../riasecMotivationQuestions';
+import { SJT_QUESTIONS_BY_JOB } from '../../sjtQuestions';
+import { calculateFullV2Assessment } from '../../scoringEngineV2';
+import type { V2AnswerInput, V2AssessmentResult } from '../../scoringEngineV2';
 
 export interface FictitiousCandidate {
   id: string;

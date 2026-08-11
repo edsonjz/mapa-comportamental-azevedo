@@ -7,11 +7,10 @@
  * Perguntas de entrevista, Recomendação final.
  */
 
-import type { V2BehaviorQuestion, BehaviorQuestionWeight } from './behaviorQuestions';
+import type { BehaviorQuestionWeight } from './behaviorQuestions';
 import { V2_BEHAVIOR_QUESTIONS } from './behaviorQuestions';
-import type { V2RiasecMotivationQuestion, RiasecDimKey, MotivatorKey } from './riasecMotivationQuestions';
+import type { RiasecDimKey, MotivatorKey } from './riasecMotivationQuestions';
 import { V2_RIASEC_MOTIVATION_QUESTIONS, V2_RIASEC_OPPORTUNITIES, RIASEC_DIMENSION_NAMES, MOTIVATOR_NAMES } from './riasecMotivationQuestions';
-import type { V2SjtQuestion } from './sjtQuestions';
 import { SJT_QUESTIONS_BY_JOB } from './sjtQuestions';
 import type { V2JobProfile } from './jobProfilesV2';
 import { V2_JOB_PROFILES, getV2JobProfile } from './jobProfilesV2';
@@ -547,7 +546,7 @@ export function calculateFit(
 
   // Alignment analysis
   const { convergences, tensions, divergences } = analyzeAlignment(
-    behavior, riasec, motivation, sjt, competencies, jobProfile
+    behavior, riasec, competencies
   );
 
   return {
@@ -574,10 +573,7 @@ export function getFitClassification(score: number): string {
 function analyzeAlignment(
   behavior: BehaviorScores,
   riasec: RiasecScores,
-  motivation: MotivationScores,
-  sjt: SjtScores | null,
-  competencies: CompetencyScores,
-  jobProfile: V2JobProfile
+  competencies: CompetencyScores
 ): { convergences: AlignmentItem[]; tensions: AlignmentItem[]; divergences: AlignmentItem[] } {
   const convergences: AlignmentItem[] = [];
   const tensions: AlignmentItem[] = [];
@@ -679,8 +675,6 @@ function analyzeAlignment(
 
 export function generateInterviewQuestions(
   behavior: BehaviorScores,
-  competencies: CompetencyScores,
-  fit: FitResult,
   jobProfile: V2JobProfile
 ): string[] {
   const questions: string[] = [];
@@ -773,13 +767,10 @@ export function generateInterviewQuestions(
 // ─── 10. Interview Recommendation ───
 
 export function generateInterviewRecommendation(
-  candidateName: string,
   behavior: BehaviorScores,
   riasec: RiasecScores,
-  motivation: MotivationScores,
   competencies: CompetencyScores,
   fit: FitResult,
-  reliability: ReliabilityResult,
   jobProfile: V2JobProfile
 ): InterviewRecommendation {
   const req = jobProfile.requirements;
@@ -845,7 +836,7 @@ export function generateInterviewRecommendation(
     }
   }
 
-  const interviewQuestions = generateInterviewQuestions(behavior, competencies, fit, jobProfile);
+  const interviewQuestions = generateInterviewQuestions(behavior, jobProfile);
 
   // Recommendation text
   const fitLevel = fit.fitClassification.toLowerCase();
@@ -882,8 +873,7 @@ export function calculateFullV2Assessment(
   behaviorAnswers: V2AnswerInput[],
   riasecMotivationAnswers: V2AnswerInput[],
   sjtAnswers: V2AnswerInput[],
-  targetJobId: string,
-  candidateName: string
+  targetJobId: string
 ): V2AssessmentResult {
   const jobProfile = getV2JobProfile(targetJobId);
   if (!jobProfile) throw new Error(`Job profile not found: ${targetJobId}`);
@@ -911,8 +901,7 @@ export function calculateFullV2Assessment(
 
   // 5. Interview recommendations
   const interview = generateInterviewRecommendation(
-    candidateName, behavior, riasec, motivation, competencies,
-    primaryFit, reliability, jobProfile
+    behavior, riasec, competencies, primaryFit, jobProfile
   );
 
   return {

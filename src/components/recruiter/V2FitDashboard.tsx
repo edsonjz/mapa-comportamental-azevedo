@@ -1,6 +1,6 @@
 import React from 'react';
-import { FitResult } from '../../lib/v2/scoringEngineV2';
-import { CheckCircle2, AlertTriangle, XCircle, ChevronRight, Target } from 'lucide-react';
+import type { FitResult } from '../../lib/v2/scoringEngineV2';
+import { Target } from 'lucide-react';
 
 interface V2FitDashboardProps {
   primaryFit: FitResult;

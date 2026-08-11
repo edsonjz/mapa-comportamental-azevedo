@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { V2_BEHAVIOR_QUESTIONS } from '../../lib/v2/behaviorQuestions';
 import { V2_RIASEC_MOTIVATION_QUESTIONS } from '../../lib/v2/riasecMotivationQuestions';
@@ -6,13 +6,13 @@ import { SJT_QUESTIONS_BY_JOB } from '../../lib/v2/sjtQuestions';
 import { V2_JOB_NAMES } from '../../lib/v2/jobProfilesV2';
 import { calculateFullV2Assessment } from '../../lib/v2/scoringEngineV2';
 import type { V2AnswerInput } from '../../lib/v2/scoringEngineV2';
-import { CheckCircle2, ChevronRight, ArrowLeft, Clock, Shield, Brain, Target, Sparkles } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Clock, Shield, Brain, Target, Sparkles } from 'lucide-react';
 
 interface V2AssessmentFlowProps {
   assessmentId: string;
   candidateName: string;
   targetJobId: string;
-  onComplete: () => void;
+  onComplete?: () => void;
 }
 
 type Module = 'behavior' | 'riasec' | 'sjt';
@@ -37,7 +37,6 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, V2AnswerInput>>({});
   const [transitioning, setTransitioning] = useState(false);
-  const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const questionStartTime = useRef<number>(Date.now());
 
@@ -84,7 +83,6 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
   const currentQuestions = getCurrentQuestions();
   const currentQuestion = currentQuestions[currentQuestionIndex];
   const totalQuestions = behaviorQuestions.length + riasecQuestions.length + sjtItems.length;
-  const answeredCount = Object.keys(answers).length;
 
   const getModuleProgress = (): number => {
     if (step === 'behavior') return currentQuestionIndex + 1;
@@ -119,7 +117,6 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
         p_response_time_ms: responseTimeMs
       });
     } catch (e) {
-      // Continue even if save fails — we calculate locally
       console.warn('Background save failed:', e);
     }
 
@@ -130,7 +127,6 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
         setCurrentQuestionIndex(prev => prev + 1);
         questionStartTime.current = Date.now();
       } else {
-        // Module complete — move to next
         handleModuleComplete();
       }
       setTransitioning(false);
@@ -138,7 +134,6 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
   };
 
   const handleModuleComplete = async () => {
-    // Update module progress in DB
     const moduleId = step as Module;
     try {
       await supabase.rpc('update_v2_module_progress', {
@@ -165,11 +160,9 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
 
   const handleCompleteAssessment = async () => {
     setStep('completing');
-    setCompleting(true);
     setError(null);
 
     try {
-      // 1. Separate answers by module
       const behaviorAnswers = Object.values(answers).filter(a =>
         a.questionCode.startsWith('B')
       );
@@ -180,17 +173,14 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
         a.questionCode.startsWith('SJT')
       );
 
-      // 2. Calculate all scores locally
       const result = calculateFullV2Assessment(
         behaviorAnswers, riasecAnswers, sjtAnswers,
-        targetJobId, candidateName
+        targetJobId
       );
 
-      // 3. Build fit data array (primary + cross fits)
       const allFits = [result.primaryFit, ...result.crossFits];
 
-      // 4. Persist to Supabase
-      const { data: persistResult, error: persistErr } = await supabase.rpc('persist_v2_scores', {
+      const { error: persistErr } = await supabase.rpc('persist_v2_scores', {
         p_assessment_id: assessmentId,
         p_behavior_scores: result.behavior,
         p_riasec_scores: { R: result.riasec.R, I: result.riasec.I, A: result.riasec.A, S: result.riasec.S, E: result.riasec.E, C: result.riasec.C },
@@ -226,12 +216,11 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
       });
 
       setStep('done');
+      if (onComplete) onComplete();
     } catch (err: any) {
       console.error('Assessment completion error:', err);
       setError(err.message || 'Ocorreu um erro ao finalizar a avaliação.');
-      setStep('sjt'); // Go back to allow retry
-    } finally {
-      setCompleting(false);
+      setStep('sjt');
     }
   };
 
