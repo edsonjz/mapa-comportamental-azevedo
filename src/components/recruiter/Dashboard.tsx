@@ -518,6 +518,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                     <th className="py-3.5 px-4 font-semibold">Cargo / Depto</th>
                     <th className="py-3.5 px-4 font-semibold">Status</th>
                     <th className="py-3.5 px-4 font-semibold">Perfil Principal</th>
+                    <th className="py-3.5 px-4 font-semibold">RIASEC</th>
                     <th className="py-3.5 px-4 font-semibold">Perfil Secundário</th>
                     <th className="py-3.5 px-4 font-semibold">Data</th>
                     <th className="py-3.5 px-4 font-semibold text-right">Ações</th>
@@ -565,6 +566,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
                             <span className="font-semibold text-blue-700 dark:text-blue-400">{a.score.primary_profile}</span>
                           ) : (
                             <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">Aguardando término</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4">
+                          {a.score?.riasec_code ? (
+                            <span className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-extrabold text-xs border border-blue-200 dark:border-blue-800">
+                              {a.score.riasec_code}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">-</span>
                           )}
                         </td>
                         <td className="py-4 px-4">

@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import type { Assessment, Candidate, AssessmentScores } from '../../types/database';
+import type { Assessment, Candidate, AssessmentScores, JobProfile } from '../../types/database';
 import { BigFiveRadarChart } from './BigFiveRadarChart';
-import { getFactorBadgeClass, calculateJobProfileCompatibility } from '../../lib/scoringEngine';
-import { JOB_TARGET_PROFILES, PROFILES_CATALOG } from '../../lib/profilesData';
+import { RiasecBarChart } from './RiasecBarChart';
+import { getFactorBadgeClass, calculateIntegratedFit, getFitBadgeClass, getFitClassification } from '../../lib/scoringEngine';
+import { INITIAL_JOB_PROFILES } from '../../lib/jobProfilesData';
+import { PROFILES_CATALOG } from '../../lib/profilesData';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { 
   X, Printer, RefreshCw, FileText, AlertTriangle, 
-  Briefcase, HelpCircle, ShieldAlert, Sparkles, Building2, User, Calendar, BookOpen, Info
+  Briefcase, ShieldAlert, User, Calendar, BookOpen, Info,
+  CheckCircle2, AlertCircle, Compass, Target, CheckSquare, Layers, HelpCircle as QuestionIcon
 } from 'lucide-react';
 
 interface AssessmentReportModalProps {
@@ -18,27 +21,39 @@ interface AssessmentReportModalProps {
 export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ assessment, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [scores, setScores] = useState<AssessmentScores | null>(null);
+  const [jobProfiles, setJobProfiles] = useState<JobProfile[]>(INITIAL_JOB_PROFILES);
   const [recalculating, setRecalculating] = useState(false);
   const [selectedJobTarget, setSelectedJobTarget] = useState<string>('operador-padrao');
   const [showGuide, setShowGuide] = useState<boolean>(true);
 
   useEffect(() => {
-    fetchScores();
+    fetchScoresAndProfiles();
   }, [assessment.id]);
 
-  const fetchScores = async () => {
+  const fetchScoresAndProfiles = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch scores
+      const { data: scoresData, error: scoresError } = await supabase
         .from('assessment_scores')
         .select('*')
         .eq('assessment_id', assessment.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao buscar pontuações:', error);
-      } else if (data) {
-        setScores(data as AssessmentScores);
+      if (scoresError && scoresError.code !== 'PGRST116') {
+        console.error('Erro ao buscar pontuações:', scoresError);
+      } else if (scoresData) {
+        setScores(scoresData as AssessmentScores);
+      }
+
+      // Fetch custom job profiles if available
+      const { data: profilesData } = await supabase
+        .from('job_profiles')
+        .select('*')
+        .eq('active', true);
+
+      if (profilesData && profilesData.length > 0) {
+        setJobProfiles(profilesData as JobProfile[]);
       }
     } catch (err) {
       console.error(err);
@@ -54,7 +69,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
         p_assessment_id: assessment.id
       });
       if (error) throw error;
-      await fetchScores();
+      await fetchScoresAndProfiles();
     } catch (err) {
       console.error('Erro ao recalcular:', err);
       alert('Não foi possível recalcular as pontuações.');
@@ -72,7 +87,6 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
       return;
     }
 
-    // Create a hidden print iframe
     let iframe = document.getElementById('report-print-iframe') as HTMLIFrameElement;
     if (!iframe) {
       iframe = document.createElement('iframe');
@@ -92,7 +106,6 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
       return;
     }
 
-    // Extract all stylesheet tags
     const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
       .map(s => s.outerHTML)
       .join('\n');
@@ -104,7 +117,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Relatorio_Comportamental_${candidateName.replace(/\s+/g, '_')}_Azevedo</title>
+          <title>Relatorio_Comportamental_RIASEC_${candidateName.replace(/\s+/g, '_')}_Azevedo</title>
           ${styleTags}
           <style>
             html, body {
@@ -170,7 +183,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
     }, 450);
   };
 
-  const jobFit = scores ? calculateJobProfileCompatibility(scores, selectedJobTarget) : null;
+  const integratedFit = scores ? calculateIntegratedFit(scores, selectedJobTarget, jobProfiles) : null;
   const primaryProfileCatalog = scores?.primary_profile ? PROFILES_CATALOG[scores.primary_profile] : null;
 
   return (
@@ -185,10 +198,10 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                Mapa Comportamental
+                Mapa Comportamental Azevedo
               </h2>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Azevedo
+                Avaliação de Personalidade, Interesses RIASEC & Aderência a Cargos
               </p>
             </div>
           </div>
@@ -199,7 +212,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
             <button
               onClick={() => setShowGuide(!showGuide)}
               className="px-3 py-2 rounded-xl bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 text-xs font-semibold border border-blue-200 dark:border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Entender cálculos, notas e deltas (+ / - pts)"
+              title="Guia de interpretação das 4 dimensões"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{showGuide ? 'Ocultar Guia' : 'Guia de Métricas'}</span>
@@ -209,7 +222,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
               onClick={handleRecalculate}
               disabled={recalculating}
               className="px-3 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-300 text-xs font-medium border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Recalcular pontuações no servidor"
+              title="Recalcular no servidor"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${recalculating ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`} />
               <span className="hidden sm:inline">Recalcular</span>
@@ -238,7 +251,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
           {loading ? (
             <div className="py-20 text-center text-slate-400">
               <div className="w-10 h-10 border-4 border-slate-400 border-t-slate-800 dark:border-slate-600 dark:border-t-slate-200 rounded-full animate-spin mx-auto mb-3"></div>
-              <span>Carregando e processando relatório psicométrico...</span>
+              <span>Processando matriz de personalidade, RIASEC e aderência profissional...</span>
             </div>
           ) : !scores ? (
             <div className="py-16 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-950/40 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
@@ -254,7 +267,7 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
             </div>
           ) : (
             <>
-              {/* Document Header Info */}
+              {/* Document Info Header */}
               <div className="bg-white dark:bg-slate-950/80 print:bg-slate-50 border border-slate-200 dark:border-slate-800 print:border-slate-300 rounded-2xl p-6 shadow-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                   <div>
@@ -271,9 +284,9 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
                   </div>
                   <div>
                     <span className="text-slate-500 dark:text-slate-400 print:text-slate-500 block mb-1 flex items-center gap-1.5 font-medium">
-                      <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Departamento:
+                      <Compass className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Código RIASEC (Holland):
                     </span>
-                    <strong className="text-slate-900 dark:text-slate-100 print:text-slate-900 text-sm">{candidate?.department || 'Operações'}</strong>
+                    <strong className="text-blue-700 dark:text-blue-300 print:text-blue-700 text-sm font-extrabold">{scores.riasec_code || 'S-C-I'}</strong>
                   </div>
                   <div>
                     <span className="text-slate-500 dark:text-slate-400 print:text-slate-500 block mb-1 flex items-center gap-1.5 font-medium">
@@ -286,239 +299,428 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
                 </div>
               </div>
 
-              {/* Profiles Result Banner */}
-              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 relative shadow-md">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 print:text-blue-600" />
-                      <span className="text-xs font-bold tracking-wider uppercase text-blue-700 dark:text-blue-300">Classificação de Estilo Comportamental</span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700">
-                        {scores.profile_classification_type}
-                      </span>
-                    </div>
-                    
-                    <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white print:text-slate-900 mb-1">
-                      {scores.primary_profile}
-                    </h3>
-                    
-                    {scores.secondary_profile && (
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
-                        Perfil Secundário de Apoio: <strong className="text-slate-800 dark:text-slate-200 font-semibold">{scores.secondary_profile}</strong>
-                      </p>
-                    )}
-                  </div>
-
-                  {jobFit && (
-                    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center shrink-0 min-w-[200px]">
-                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Aderência ao Cargo Selecionado</span>
-                      <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{jobFit.compatibilityScore}%</div>
-                      <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 font-medium">{jobFit.recommendation}</p>
-                    </div>
-                  )}
-                </div>
-
-                {primaryProfileCatalog && (
-                  <p className="text-xs text-slate-700 dark:text-slate-300 mt-4 leading-relaxed border-t border-slate-200 dark:border-slate-800/80 pt-4">
-                    {primaryProfileCatalog.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Big Five Radar Chart & Factor Scores */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                <div className="flex flex-col items-center justify-center p-4">
-                  <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-4">
-                    Mapeamento de Competências Big Five
-                  </h4>
-                  <BigFiveRadarChart
-                    openness={scores.openness_score}
-                    conscientiousness={scores.conscientiousness_score}
-                    extraversion={scores.extraversion_score}
-                    agreeableness={scores.agreeableness_score}
-                    emotionalStability={scores.emotional_stability_score}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-4">
-                    Detalhamento dos Fatores Psicométricos
-                  </h4>
-
-                  {[
-                    { label: 'Abertura a Experiências (O)', score: scores.openness_score, desc: 'Criatividade, facilidade de adaptação a novos roteiros e aprendizado.' },
-                    { label: 'Conscienciosidade (C)', score: scores.conscientiousness_score, desc: 'Organização, rigor com normas operacionais e pontualidade.' },
-                    { label: 'Extroversão (E)', score: scores.extraversion_score, desc: 'Energia de comunicação, assertividade e sociabilidade no atendimento.' },
-                    { label: 'Amabilidade (A)', score: scores.agreeableness_score, desc: 'Empatia, cordialidade e espírito colaborativo em equipe.' },
-                    { label: 'Estabilidade Emocional (ES)', score: scores.emotional_stability_score, desc: 'Tolerância ao estresse e controle emocional em chamadas críticas.' },
-                  ].map((factor, idx) => (
-                    <div key={idx} className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-900 dark:text-slate-200">{factor.label}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">{factor.score}%</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getFactorBadgeClass(factor.score)}`}>
-                            {factor.score >= 70 ? 'Alto' : factor.score >= 40 ? 'Moderado' : 'Baixo'}
-                          </span>
-                        </div>
+              {/* Integrated Multi-Fit Banner */}
+              {integratedFit && (
+                <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 relative shadow-md">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Target className="w-5 h-5 text-blue-600 dark:text-blue-400 print:text-blue-600" />
+                        <span className="text-xs font-bold tracking-wider uppercase text-blue-700 dark:text-blue-300">Análise Integrada de Aderência Profissional</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${getFitBadgeClass(integratedFit.overallFit)}`}>
+                          {integratedFit.fitClassification}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-tight">{factor.desc}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Job Target Selector & Fit Analysis */}
-              <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
-                      <span>Simulação de Aderência a Cargos Operacionais</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowGuide(!showGuide)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs no-print flex items-center gap-1 cursor-pointer font-normal"
-                      >
-                        <Info className="w-3.5 h-3.5" />
-                        O que significam estes números?
-                      </button>
-                    </h4>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Selecione um perfil de referência para comparar as competências do candidato.
-                    </p>
-                  </div>
-                  <select
-                    value={selectedJobTarget}
-                    onChange={(e) => setSelectedJobTarget(e.target.value)}
-                    className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
-                  >
-                    {JOB_TARGET_PROFILES.map((job) => (
-                      <option key={job.id} value={job.id}>{job.title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {jobFit && (
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                    {[
-                      { name: 'Abertura (O)', diff: jobFit.opennessDiff },
-                      { name: 'Conscienciosidade (C)', diff: jobFit.conscientiousnessDiff },
-                      { name: 'Extroversão (E)', diff: jobFit.extraversionDiff },
-                      { name: 'Amabilidade (A)', diff: jobFit.agreeablenessDiff },
-                      { name: 'Estabilidade Emocional (ES)', diff: jobFit.emotionalStabilityDiff },
-                    ].map((d, i) => {
-                      let statusText = 'Alinhado à Meta';
-                      let statusClass = 'text-blue-600 dark:text-blue-400';
-
-                      if (d.diff > 3) {
-                        statusText = 'Supera a Meta';
-                        statusClass = 'text-emerald-600 dark:text-emerald-400';
-                      } else if (d.diff < -3) {
-                        statusText = 'Abaixo da Meta';
-                        statusClass = 'text-amber-600 dark:text-amber-400';
-                      }
-
-                      return (
-                        <div key={i} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl text-center">
-                          <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">{d.name}</span>
-                          <span className={`text-base font-extrabold block ${statusClass}`}>
-                            {d.diff > 0 ? `+${d.diff}` : d.diff} pts
-                          </span>
-                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium block mt-0.5">
-                            {statusText}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Collapsible Explanatory Knowledge Base Section */}
-              {showGuide && (
-                <div className="bg-white dark:bg-slate-950/90 border border-blue-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
-                    <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                      Guia de Interpretação das Métricas & Deltas (+ / - pts)
-                    </h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
-                    {/* Column 1: Porcentagens */}
-                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                      <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-2 text-xs flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                        1. Porcentagens de Fator (0% a 100%)
-                      </h5>
-                      <p className="mb-2 text-[11px]">
-                        Indicam a intensidade comportamental do candidato em cada dimensão:
+                      <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white print:text-slate-900 mb-1">
+                        Cargo Avaliado: {integratedFit.jobProfile.name}
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        {integratedFit.jobProfile.description}
                       </p>
-                      <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-600 dark:text-slate-400">
-                        <li><strong className="text-slate-900 dark:text-slate-100">&lt; 40% (Baixo):</strong> Menor tendência natural àquela característica. Ex: Conscienciosidade baixa indica perfil informal e espontâneo.</li>
-                        <li><strong className="text-slate-900 dark:text-slate-100">40% a 65% (Moderado):</strong> Nível equilibrado e adaptável conforme a necessidade.</li>
-                        <li><strong className="text-slate-900 dark:text-slate-100">&gt; 65% (Alto):</strong> Forte inclinação comportamental contínua.</li>
-                      </ul>
                     </div>
 
-                    {/* Column 2: O que são os Deltas + / - pts */}
-                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                      <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-2 text-xs flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                        2. Entendendo os Deltas (+ / - pts)
-                      </h5>
-                      <p className="mb-2 text-[11px]">
-                        O Delta é a diferença exata entre a nota do candidato e a nota recomendada para a vaga:
-                      </p>
-                      <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-600 dark:text-slate-400">
-                        <li><strong className="text-emerald-600 dark:text-emerald-400">Positivo (ex: +8 pts):</strong> O candidato ultrapassa a nota recomendada. É um <strong>diferencial / ponto forte</strong>.</li>
-                        <li><strong className="text-amber-600 dark:text-amber-400">Negativo (ex: -29 pts):</strong> O candidato pontua abaixo da meta. É uma <strong>oportunidade de desenvolvimento / ponto para entrevista</strong>.</li>
-                        <li><strong className="text-blue-600 dark:text-blue-400">Próximo a Zero (ex: -2 pts):</strong> Sintonia exata com o perfil ideal da vaga.</li>
-                      </ul>
+                    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center shrink-0 min-w-[220px]">
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block mb-1">Aderência Global (Overall Fit)</span>
+                      <div className="text-4xl font-extrabold text-blue-600 dark:text-blue-400">{integratedFit.overallFit}%</div>
+                      <span className="text-[10px] font-bold text-slate-500 block mt-1 uppercase tracking-wider">{integratedFit.fitClassification}</span>
+                    </div>
+                  </div>
+
+                  {/* 4 Fit Cards Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">1. Personalidade Fit</span>
+                      <div className="text-2xl font-extrabold text-slate-900 dark:text-white">{integratedFit.personalityFit}%</div>
+                      <span className="text-[9px] text-slate-600 dark:text-slate-400 font-medium">Big Five vs Função</span>
                     </div>
 
-                    {/* Column 3: Porcentagem de Aderência */}
-                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                      <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-2 text-xs flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
-                        3. Aderência Global (%)
-                      </h5>
-                      <p className="mb-2 text-[11px]">
-                        Índice final de compatibilidade do candidato com a vaga selecionada:
-                      </p>
-                      <ul className="space-y-1 text-[11px] list-disc list-inside text-slate-600 dark:text-slate-400">
-                        <li><strong className="text-slate-900 dark:text-slate-100">&ge; 80%:</strong> Altíssima compatibilidade. Rápida adaptação e alto desempenho esperado.</li>
-                        <li><strong className="text-slate-900 dark:text-slate-100">60% a 79%:</strong> Boa aderência com pontos pontuais a acompanhar em treinamento.</li>
-                        <li><strong className="text-slate-900 dark:text-slate-100">&lt; 60%:</strong> Exige validação aprofundada ou reavaliação para outro cargo.</li>
-                      </ul>
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">2. Interesse Fit</span>
+                      <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">{integratedFit.interestFit}%</div>
+                      <span className="text-[9px] text-slate-600 dark:text-slate-400 font-medium">RIASEC vs Função</span>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">3. Comportamento Fit</span>
+                      <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{integratedFit.situationalFit}%</div>
+                      <span className="text-[9px] text-slate-600 dark:text-slate-400 font-medium">AD, RA, MS, OR vs Função</span>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">4. Aderência Global</span>
+                      <div className="text-2xl font-extrabold text-purple-600 dark:text-purple-400">{integratedFit.overallFit}%</div>
+                      <span className="text-[9px] text-slate-600 dark:text-slate-400 font-medium">Média Ponderada</span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Suggested Interview Questions */}
-              <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-4 flex items-center gap-2">
-                  <HelpCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Perguntas Sugeridas para Validação em Entrevista</span>
-                </h4>
-                <div className="space-y-3">
-                  {(scores.interview_questions || primaryProfileCatalog?.suggested_interview_questions || []).map((q: string, i: number) => (
-                    <div key={i} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-xs text-slate-800 dark:text-slate-200 flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center shrink-0 text-xs border border-slate-300 dark:border-slate-700">
-                        {i + 1}
-                      </span>
-                      <p className="leading-relaxed pt-0.5">{q}</p>
+              {/* BLOCO 01: Personalidade (Big Five) */}
+              <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <span className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-800">
+                    01
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Perfil de Personalidade (Big Five)</h3>
+                    <p className="text-xs text-slate-500">Dimensão 1: Como essa pessoa tende a funcionar naturalmente</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <BigFiveRadarChart
+                      openness={scores.openness_score}
+                      conscientiousness={scores.conscientiousness_score}
+                      extraversion={scores.extraversion_score}
+                      agreeableness={scores.agreeableness_score}
+                      emotionalStability={scores.emotional_stability_score}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-4">
+                      Detalhamento dos 5 Fatores
+                    </h4>
+
+                    {[
+                      { label: 'Abertura a Experiências (O)', score: scores.openness_score, desc: 'Criatividade, facilidade de adaptação a novos roteiros e aprendizado.' },
+                      { label: 'Conscienciosidade (C)', score: scores.conscientiousness_score, desc: 'Organização, rigor com normas operacionais e pontualidade.' },
+                      { label: 'Extroversão (E)', score: scores.extraversion_score, desc: 'Energia de comunicação, assertividade e sociabilidade no atendimento.' },
+                      { label: 'Amabilidade (A)', score: scores.agreeableness_score, desc: 'Empatia, cordialidade e espírito colaborativo em equipe.' },
+                      { label: 'Estabilidade Emocional (ES)', score: scores.emotional_stability_score, desc: 'Tolerância ao estresse e controle emocional em chamadas críticas.' },
+                    ].map((factor, idx) => (
+                      <div key={idx} className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-slate-200">{factor.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">{factor.score}%</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getFactorBadgeClass(factor.score)}`}>
+                              {factor.score >= 70 ? 'Alto' : factor.score >= 40 ? 'Moderado' : 'Baixo'}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-tight">{factor.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {primaryProfileCatalog && (
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <strong>Resumo do Estilo {scores.primary_profile}:</strong> {primaryProfileCatalog.description}
+                  </p>
+                )}
+              </div>
+
+              {/* BLOCO 02: Interesses Profissionais (RIASEC) */}
+              <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 font-extrabold text-xs flex items-center justify-center border border-purple-200 dark:border-purple-800">
+                    02
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Interesses Profissionais (RIASEC — Holland)</h3>
+                    <p className="text-xs text-slate-500">Dimensão 2: Que tipos de atividades despertam maior motivação nesta pessoa</p>
+                  </div>
+                </div>
+
+                <RiasecBarChart
+                  rScore={scores.riasec_r_score ?? 30}
+                  iScore={scores.riasec_i_score ?? 50}
+                  aScore={scores.riasec_a_score ?? 30}
+                  sScore={scores.riasec_s_score ?? 70}
+                  eScore={scores.riasec_e_score ?? 50}
+                  cScore={scores.riasec_c_score ?? 70}
+                  code={scores.riasec_code || 'S-C-I'}
+                />
+
+                {scores.riasec_summary && (
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <strong>Resumo de Interesses:</strong> {scores.riasec_summary}
+                  </p>
+                )}
+              </div>
+
+              {/* BLOCO 03: Comportamento Situacional */}
+              <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs flex items-center justify-center border border-emerald-200 dark:border-emerald-800">
+                    03
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Comportamento Situacional (Questionário Prático de Contact Center)</h3>
+                    <p className="text-xs text-slate-500">Dimensão 3: Como tende a agir diante de situações reais de atendimento e rotina</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Adaptabilidade (AD)', score: scores.adaptability_score, desc: 'Facilidade com novos roteiros e sistemas.' },
+                    { label: 'Resiliência (RA)', score: scores.resilience_score, desc: 'Recuperação rápida após chamadas difíceis.' },
+                    { label: 'Maturidade Social (MS)', score: scores.social_maturity_score, desc: 'Diplomacia, paciência e inteligência emocional.' },
+                    { label: 'Orientação Operacional (OR)', score: scores.operational_orientation_score, desc: 'Rigor com metas, scripts e tempo de atendimento.' },
+                  ].map((ind, idx) => (
+                    <div key={idx} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">{ind.label}</span>
+                      <div className="text-3xl font-extrabold text-slate-900 dark:text-white my-1">{ind.score}%</div>
+                      <p className="text-[10px] text-slate-500 leading-tight">{ind.desc}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Disclaimer */}
+              {/* BLOCO 04: Matriz Integrada de Aderência ao Cargo */}
+              {integratedFit && (
+                <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 font-extrabold text-xs flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        04
+                      </span>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">Matriz Integrada de Aderência</h3>
+                        <p className="text-xs text-slate-500">Cruzamento das 4 dimensões com as exigências do cargo selecionado</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 no-print">
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Cargo de Referência:</span>
+                      <select
+                        value={selectedJobTarget}
+                        onChange={(e) => setSelectedJobTarget(e.target.value)}
+                        className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
+                      >
+                        {jobProfiles.map((job) => (
+                          <option key={job.id} value={job.id}>{job.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Matrix Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800">
+                          <th className="p-3.5 font-bold">DIMENSÃO AVALIADA</th>
+                          <th className="p-3.5 font-bold text-center">PONTUAÇÃO CANDIDATO</th>
+                          <th className="p-3.5 font-bold text-center">EXIGÊNCIA DO CARGO</th>
+                          <th className="p-3.5 font-bold text-center">CLASSIFICAÇÃO DE ADERÊNCIA</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <tr>
+                          <td className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">1. Personalidade (Big Five)</td>
+                          <td className="p-3.5 text-center font-bold text-slate-900 dark:text-slate-100">{integratedFit.personalityFit}%</td>
+                          <td className="p-3.5 text-center text-slate-500">80% recomendados</td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getFitBadgeClass(integratedFit.personalityFit)}`}>
+                              {getFitClassification(integratedFit.personalityFit)}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">2. Interesse Profissional (RIASEC)</td>
+                          <td className="p-3.5 text-center font-bold text-blue-600 dark:text-blue-400">{integratedFit.interestFit}%</td>
+                          <td className="p-3.5 text-center text-slate-500">Foco {integratedFit.jobProfile.name}</td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getFitBadgeClass(integratedFit.interestFit)}`}>
+                              {getFitClassification(integratedFit.interestFit)}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="p-3.5 font-semibold text-slate-900 dark:text-slate-100">3. Comportamento Situacional</td>
+                          <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">{integratedFit.situationalFit}%</td>
+                          <td className="p-3.5 text-center text-slate-500">AD, RA, MS, OR</td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getFitBadgeClass(integratedFit.situationalFit)}`}>
+                              {getFitClassification(integratedFit.situationalFit)}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr className="bg-slate-50 dark:bg-slate-900/60 font-bold">
+                          <td className="p-3.5 text-slate-900 dark:text-white font-extrabold">ADERÊNCIA GLOBAL (OVERALL FIT)</td>
+                          <td className="p-3.5 text-center font-extrabold text-purple-600 dark:text-purple-400 text-sm">{integratedFit.overallFit}%</td>
+                          <td className="p-3.5 text-center text-slate-500">—</td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${getFitBadgeClass(integratedFit.overallFit)}`}>
+                              {integratedFit.fitClassification}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Synergies & Contradiction Detection Engine Output */}
+              {integratedFit && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Synergies */}
+                  <div className="bg-white dark:bg-slate-950/80 border border-emerald-200 dark:border-emerald-900/60 rounded-3xl p-6 shadow-sm space-y-4">
+                    <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span>Sinergias & Pontos Fortes Cruzados</span>
+                    </h4>
+                    <div className="space-y-2 text-xs">
+                      {integratedFit.synergies.map((syn, idx) => (
+                        <div key={idx} className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200 leading-relaxed font-medium">
+                          • {syn}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contradictions */}
+                  <div className="bg-white dark:bg-slate-950/80 border border-amber-200 dark:border-amber-900/60 rounded-3xl p-6 shadow-sm space-y-4">
+                    <h4 className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-600" />
+                      <span>Análise de Contradições & Investigação</span>
+                    </h4>
+                    <div className="space-y-2 text-xs">
+                      {integratedFit.contradictions.length > 0 ? (
+                        integratedFit.contradictions.map((con, idx) => (
+                          <div key={idx} className="bg-amber-50 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 leading-relaxed">
+                            ⚠️ {con}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl text-slate-600 dark:text-slate-400">
+                          Nenhuma contradição significativa detectada entre perfil motivacional (RIASEC) e padrão comportamental (Big Five).
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Role Ranking & Recommendations */}
+              {integratedFit && (
+                <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>Mapeamento de Aderência a Outras Funções da Operação</span>
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                    {/* Top Matching Roles */}
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h5 className="font-bold text-emerald-600 dark:text-emerald-400 mb-3 flex items-center gap-1.5 uppercase text-[11px]">
+                        <CheckSquare className="w-4 h-4" /> Funções de Maior Aderência
+                      </h5>
+                      <div className="space-y-2">
+                        {integratedFit.topMatchingRoles.map((r, i) => (
+                          <div key={i} className="flex items-center justify-between bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{i + 1}. {r.name}</span>
+                            <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{r.score}% fit</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Adaptation Roles */}
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h5 className="font-bold text-slate-600 dark:text-slate-400 mb-3 flex items-center gap-1.5 uppercase text-[11px]">
+                        <Info className="w-4 h-4" /> Funções que Podem Exigir Maior Adaptação
+                      </h5>
+                      <div className="space-y-2">
+                        {integratedFit.adaptationRoles.map((r, i) => (
+                          <div key={i} className="flex items-center justify-between bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">{r.name}</span>
+                            <span className="font-bold text-slate-500">{r.score}% fit</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Recruiter Interview Recommendations */}
+              {integratedFit && (
+                <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 flex items-center gap-2">
+                    <QuestionIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>Guia de Recomendação para o Recrutador (Entrevista)</span>
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                    {/* Situational Questions */}
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-2">Perguntas Situacionais Recomendadas:</h5>
+                      {integratedFit.recruiterRecommendations.situational_questions.map((q, i) => (
+                        <div key={i} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 leading-relaxed text-slate-800 dark:text-slate-200">
+                          <strong>{i + 1}.</strong> {q}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Investigation Points & Risks */}
+                    <div className="space-y-3">
+                      <div>
+                        <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-1">Pontos para Investigar:</h5>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
+                          {integratedFit.recruiterRecommendations.investigate_points.map((p, i) => (
+                            <li key={i}>{p}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div>
+                        <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-1">Possíveis Riscos a Acompanhar:</h5>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400">
+                          {integratedFit.recruiterRecommendations.potential_risks.map((r, i) => (
+                            <li key={i}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Explanatory Knowledge Base Section */}
+              {showGuide && (
+                <div className="bg-white dark:bg-slate-950/90 border border-blue-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+                    <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      Guia de Interpretação das 4 Dimensões
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+                    <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h5 className="font-bold text-slate-900 dark:text-slate-100 mb-1">1. Personalidade (Big Five)</h5>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400">Responde: <em>"Como tende a funcionar?"</em>. Mede tendências comportamentais consolidadas.</p>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h5 className="font-bold text-blue-600 dark:text-blue-400 mb-1">2. Interesse (RIASEC)</h5>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400">Responde: <em>"O que gosta de fazer?"</em>. Mede motivação profissional por Holland.</p>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h5 className="font-bold text-emerald-600 dark:text-emerald-400 mb-1">3. Comportamento Situacional</h5>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400">Responde: <em>"Como age no trabalho?"</em>. Avalia resiliência e maturidade social em chamadas.</p>
+                    </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <h5 className="font-bold text-purple-600 dark:text-purple-400 mb-1">4. Exigência do Cargo</h5>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400">Responde: <em>"O que a função exige?"</em>. Compara o perfil com as metas do cargo.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Methodological Disclaimer (Verbatim from prompt section 30) */}
               <div className="bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed text-center italic flex items-center justify-center gap-2">
                 <ShieldAlert className="w-4 h-4 text-slate-500 shrink-0" />
                 <span>
-                  <strong>Observação Metodológica:</strong> Este relatório é uma ferramenta de apoio à avaliação comportamental e tomada de decisão no processo seletivo da Azevedo.
+                  <strong>Observação Metodológica:</strong> Este resultado representa uma hipótese de aderência comportamental e de interesses profissionais baseada nas respostas fornecidas. Não constitui diagnóstico psicológico nem substitui avaliação psicológica, entrevista profissional ou instrumento psicométrico validado.
                 </span>
               </div>
             </>
