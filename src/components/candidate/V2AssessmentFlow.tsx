@@ -6,6 +6,7 @@ import { SJT_QUESTIONS_BY_JOB } from '../../lib/v2/sjtQuestions';
 import { V2_JOB_NAMES } from '../../lib/v2/jobProfilesV2';
 import { calculateFullV2Assessment } from '../../lib/v2/scoringEngineV2';
 import type { V2AnswerInput } from '../../lib/v2/scoringEngineV2';
+import { getShuffledSjtOptions, getShuffledBinaryOptions } from '../../lib/shuffleOptions';
 import { CheckCircle2, ChevronRight, Clock, Shield, Brain, Target, Sparkles } from 'lucide-react';
 
 interface V2AssessmentFlowProps {
@@ -420,17 +421,21 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
             {/* Options */}
             <div className="space-y-3">
               {currentQuestion.isSjt && currentQuestion.optionC ? (
-                // 4-option SJT
-                ['A', 'B', 'C', 'D'].map(key => {
-                  const optionText = key === 'A' ? currentQuestion.optionA :
-                                     key === 'B' ? currentQuestion.optionB :
-                                     key === 'C' ? currentQuestion.optionC :
-                                     currentQuestion.optionD;
-                  const isSelected = answers[currentQuestion.code]?.selectedOption === key;
+                // 4-option SJT (Deterministically Shuffled)
+                getShuffledSjtOptions(
+                  [
+                    { key: 'A', text: currentQuestion.optionA },
+                    { key: 'B', text: currentQuestion.optionB },
+                    { key: 'C', text: currentQuestion.optionC || '' },
+                    { key: 'D', text: currentQuestion.optionD || '' }
+                  ],
+                  `${assessmentId}-${currentQuestion.code}`
+                ).map(opt => {
+                  const isSelected = answers[currentQuestion.code]?.selectedOption === opt.originalKey;
                   return (
                     <button
-                      key={key}
-                      onClick={() => handleSelectOption(key)}
+                      key={opt.originalKey}
+                      onClick={() => handleSelectOption(opt.originalKey)}
                       disabled={transitioning}
                       className={`w-full text-left p-4 sm:p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer group
                         ${isSelected
@@ -445,24 +450,27 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 group-hover:text-blue-700 dark:group-hover:text-blue-400'
                           }`}
                         >
-                          {key}
+                          {opt.displayKey}
                         </span>
                         <span className={`text-sm leading-relaxed ${isSelected ? 'text-blue-800 dark:text-blue-200 font-medium' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {optionText}
+                          {opt.text}
                         </span>
                       </div>
                     </button>
                   );
                 })
               ) : (
-                // 2-option binary (A/B)
-                ['A', 'B'].map(key => {
-                  const optionText = key === 'A' ? currentQuestion.optionA : currentQuestion.optionB;
-                  const isSelected = answers[currentQuestion.code]?.selectedOption === key;
+                // 2-option binary (A/B) (Deterministically Shuffled)
+                getShuffledBinaryOptions(
+                  currentQuestion.optionA,
+                  currentQuestion.optionB,
+                  `${assessmentId}-${currentQuestion.code}`
+                ).map(opt => {
+                  const isSelected = answers[currentQuestion.code]?.selectedOption === opt.originalKey;
                   return (
                     <button
-                      key={key}
-                      onClick={() => handleSelectOption(key)}
+                      key={opt.originalKey}
+                      onClick={() => handleSelectOption(opt.originalKey)}
                       disabled={transitioning}
                       className={`w-full text-left p-5 sm:p-6 rounded-2xl border-2 transition-all duration-200 cursor-pointer group
                         ${isSelected
@@ -471,7 +479,7 @@ export const V2AssessmentFlow: React.FC<V2AssessmentFlowProps> = ({
                         }`}
                     >
                       <span className={`text-sm sm:text-base leading-relaxed ${isSelected ? 'text-blue-800 dark:text-blue-200 font-medium' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {optionText}
+                        {opt.text}
                       </span>
                     </button>
                   );
