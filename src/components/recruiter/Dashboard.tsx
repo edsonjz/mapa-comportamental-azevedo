@@ -10,6 +10,9 @@ import {
   LogOut, History, RefreshCw, X, UserPlus, Link2, FileSpreadsheet, BookOpen, UserCheck
 } from 'lucide-react';
 
+import { V2AssessmentReportModal } from './V2AssessmentReportModal';
+import { V2_JOB_PROFILES } from '../../lib/v2/jobProfilesV2';
+
 interface DashboardProps {
   user: any;
   onLogout: () => void;
@@ -18,6 +21,8 @@ interface DashboardProps {
 type AssessmentWithCandidate = Assessment & {
   candidate?: Candidate;
   score?: AssessmentScores;
+  assessment_version?: string;
+  target_job_id?: string;
 };
 
 const MASTER_ADMIN_EMAIL = 'edsonjz@gmail.com';
@@ -45,7 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [newCandidateName, setNewCandidateName] = useState('');
   const [newCandidateEmail, setNewCandidateEmail] = useState('');
   const [newCandidatePhone, setNewCandidatePhone] = useState('');
-  const [newCandidatePosition, setNewCandidatePosition] = useState('Operador de Atendimento');
+  const [targetJobId, setTargetJobId] = useState('operador-atendimento');
   const [newCandidateDept, setNewCandidateDept] = useState('Operações');
   const [creating, setCreating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
@@ -117,13 +122,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
     setCreating(true);
     try {
+      const selectedJob = V2_JOB_PROFILES.find(j => j.id === targetJobId);
+      const positionName = selectedJob ? selectedJob.name : 'Operador de Atendimento';
+
       const { data: candidateData, error: candErr } = await supabase
         .from('candidates')
         .insert({
           name: newCandidateName.trim(),
           email: newCandidateEmail.trim() || null,
           phone: newCandidatePhone.trim() || null,
-          position: newCandidatePosition.trim() || 'Operador de Atendimento',
+          position: positionName,
           department: newCandidateDept.trim() || 'Operações',
           recruiter_id: user.id
         })
@@ -138,7 +146,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           candidate_id: candidateData.id,
           recruiter_id: user.id,
           status: 'pending',
-          scoring_version: 'b5cx_v1'
+          scoring_version: 'v2.0',
+          assessment_version: 'v2',
+          target_job_id: targetJobId
         })
         .select()
         .single();
@@ -149,8 +159,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         assessment_id: assessData.id,
         actor_type: 'recruiter',
         actor_id: user.id,
-        action: 'created',
-        details: { candidate_name: candidateData.name }
+        action: 'created_v2',
+        details: { candidate_name: candidateData.name, target_job_id: targetJobId }
       });
 
       const fullLink = `${window.location.origin}${window.location.pathname}?token=${assessData.access_token}`;
@@ -733,14 +743,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Cargo Pretendido</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Operador de Atendimento"
-                      value={newCandidatePosition}
-                      onChange={(e) => setNewCandidatePosition(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-slate-500 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none"
-                    />
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Função Alvo de Contact Center *
+                    </label>
+                    <select
+                      value={targetJobId}
+                      onChange={(e) => setTargetJobId(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-slate-500 rounded-xl px-3 py-2.5 text-xs text-slate-900 dark:text-slate-200 focus:outline-none cursor-pointer"
+                    >
+                      {V2_JOB_PROFILES.map(job => (
+                        <option key={job.id} value={job.id}>{job.name}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -969,12 +983,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         />
       )}
 
-      {/* Modal 5: Report Viewer */}
+      {/* Modal 5: Report Viewer (V1 or V2) */}
       {selectedAssessmentForReport && (
-        <AssessmentReportModal
-          assessment={selectedAssessmentForReport}
-          onClose={() => setSelectedAssessmentForReport(null)}
-        />
+        selectedAssessmentForReport.assessment_version === 'v2' || selectedAssessmentForReport.scoring_version === 'v2.0' ? (
+          <V2AssessmentReportModal
+            assessmentId={selectedAssessmentForReport.id}
+            candidateName={selectedAssessmentForReport.candidate?.name || 'Candidato'}
+            targetJobId={selectedAssessmentForReport.target_job_id || 'operador-atendimento'}
+            createdAt={selectedAssessmentForReport.created_at}
+            completedAt={selectedAssessmentForReport.completed_at || undefined}
+            onClose={() => setSelectedAssessmentForReport(null)}
+          />
+        ) : (
+          <AssessmentReportModal
+            assessment={selectedAssessmentForReport}
+            onClose={() => setSelectedAssessmentForReport(null)}
+          />
+        )
       )}
 
       {/* Modal 6: Audit Logs */}

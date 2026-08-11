@@ -5,6 +5,8 @@ import { RIASEC_QUESTIONS_CATALOG } from '../../lib/riasecQuestions';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { CheckCircle2, ChevronRight, ChevronLeft, AlertCircle, ShieldCheck, Clock, FileText, Send, Sparkles } from 'lucide-react';
 
+import { V2AssessmentFlow } from './V2AssessmentFlow';
+
 interface CandidateAssessmentFlowProps {
   token: string;
 }
@@ -16,6 +18,8 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
   const [assessmentId, setAssessmentId] = useState<string>('');
   const [candidateName, setCandidateName] = useState('');
   const [position, setPosition] = useState('');
+  const [isV2, setIsV2] = useState(false);
+  const [targetJobId, setTargetJobId] = useState('operador-atendimento');
   
   // Stage 1: Behavioral (40 questions)
   const [behavioralQuestions, setBehavioralQuestions] = useState<Question[]>([]);
@@ -57,6 +61,14 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
       setAssessmentId(assessmentObj.id || '');
       setCandidateName(candidateObj.name || 'Candidato');
       setPosition(candidateObj.position || 'Operador de Atendimento');
+
+      // Check if assessment is V2
+      if (assessmentObj.assessment_version === 'v2' || assessmentObj.scoring_version === 'v2.0') {
+        setIsV2(true);
+        setTargetJobId(assessmentObj.target_job_id || 'operador-atendimento');
+        setLoading(false);
+        return;
+      }
 
       // Set Behavioral questions & answers
       setBehavioralQuestions(data.questions || []);
@@ -212,6 +224,17 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
           <div className="text-[11px] text-slate-500">Solicite um novo link ao recrutador responsável pelo seu processo seletivo.</div>
         </div>
       </div>
+    );
+  }
+
+  if (isV2) {
+    return (
+      <V2AssessmentFlow
+        assessmentId={assessmentId}
+        candidateName={candidateName}
+        targetJobId={targetJobId}
+        onComplete={() => {}}
+      />
     );
   }
 
