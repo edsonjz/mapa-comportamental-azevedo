@@ -5,12 +5,11 @@ import { BigFiveRadarChart } from './BigFiveRadarChart';
 import { RiasecBarChart } from './RiasecBarChart';
 import { getFactorBadgeClass, calculateIntegratedFit, getFitBadgeClass, getFitClassification } from '../../lib/scoringEngine';
 import { INITIAL_JOB_PROFILES } from '../../lib/jobProfilesData';
-import { PROFILES_CATALOG } from '../../lib/profilesData';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { 
   X, Printer, RefreshCw, FileText, AlertTriangle, 
   Briefcase, ShieldAlert, User, Calendar, BookOpen, Info,
-  CheckCircle2, AlertCircle, Compass, Target, CheckSquare, Layers, HelpCircle as QuestionIcon
+  Compass, Target, CheckSquare, Layers, HelpCircle as QuestionIcon
 } from 'lucide-react';
 
 interface AssessmentReportModalProps {
@@ -184,7 +183,6 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
   };
 
   const integratedFit = scores ? calculateIntegratedFit(scores, selectedJobTarget, jobProfiles) : null;
-  const primaryProfileCatalog = scores?.primary_profile ? PROFILES_CATALOG[scores.primary_profile] : null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 overflow-y-auto">
@@ -406,39 +404,62 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
                   </div>
                 </div>
 
-                {primaryProfileCatalog && (
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <strong>Resumo do Estilo {scores.primary_profile}:</strong> {primaryProfileCatalog.description}
-                  </p>
+                {integratedFit && (
+                  <div className="bg-slate-50 dark:bg-slate-900/90 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+                      Resumo Analítico do Estilo de Atendimento ({scores.primary_profile}):
+                    </span>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                      {integratedFit.dynamicStyleSummary}
+                    </p>
+                  </div>
                 )}
               </div>
 
               {/* BLOCO 02: Interesses Profissionais (RIASEC) */}
               <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
-                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 font-extrabold text-xs flex items-center justify-center border border-purple-200 dark:border-purple-800">
-                    02
-                  </span>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Interesses Profissionais (RIASEC — Holland)</h3>
-                    <p className="text-xs text-slate-500">Dimensão 2: Que tipos de atividades despertam maior motivação nesta pessoa</p>
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 font-extrabold text-xs flex items-center justify-center border border-purple-200 dark:border-purple-800">
+                      02
+                    </span>
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">Interesses Profissionais (RIASEC — Holland)</h3>
+                      <p className="text-xs text-slate-500">Dimensão 2: Que tipos de atividades despertam maior motivação nesta pessoa</p>
+                    </div>
                   </div>
+                  {scores.riasec_code && scores.riasec_code !== 'Pendente' && (
+                    <span className="px-3 py-1 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-extrabold text-xs rounded-full border border-purple-300 dark:border-purple-800">
+                      Código Dominante: {scores.riasec_code}
+                    </span>
+                  )}
                 </div>
 
-                <RiasecBarChart
-                  rScore={scores.riasec_r_score ?? 30}
-                  iScore={scores.riasec_i_score ?? 50}
-                  aScore={scores.riasec_a_score ?? 30}
-                  sScore={scores.riasec_s_score ?? 70}
-                  eScore={scores.riasec_e_score ?? 50}
-                  cScore={scores.riasec_c_score ?? 70}
-                  code={scores.riasec_code || 'S-C-I'}
-                />
+                {((scores.riasec_s_score ?? 0) + (scores.riasec_c_score ?? 0) + (scores.riasec_i_score ?? 0) + (scores.riasec_r_score ?? 0)) > 0 ? (
+                  <>
+                    <RiasecBarChart
+                      rScore={scores.riasec_r_score ?? 33}
+                      iScore={scores.riasec_i_score ?? 50}
+                      aScore={scores.riasec_a_score ?? 42}
+                      sScore={scores.riasec_s_score ?? 75}
+                      eScore={scores.riasec_e_score ?? 50}
+                      cScore={scores.riasec_c_score ?? 67}
+                      code={scores.riasec_code || 'S-C-I'}
+                    />
 
-                {scores.riasec_summary && (
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <strong>Resumo de Interesses:</strong> {scores.riasec_summary}
-                  </p>
+                    {scores.riasec_summary && (
+                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <strong>Resumo de Interesses:</strong> {scores.riasec_summary}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 p-4 rounded-2xl text-amber-900 dark:text-amber-300 text-xs flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                    <div>
+                      <strong>Etapa RIASEC Não Concluída:</strong> O candidato concluiu o questionário comportamental Big Five, mas o módulo de interesses profissionais (RIASEC) ainda não foi respondido.
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -556,43 +577,46 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
                 </div>
               )}
 
-              {/* Synergies & Contradiction Detection Engine Output */}
+              {/* Tri-Class Alignment Engine: Convergência, Tensão e Divergência */}
               {integratedFit && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Synergies */}
-                  <div className="bg-white dark:bg-slate-950/80 border border-emerald-200 dark:border-emerald-900/60 rounded-3xl p-6 shadow-sm space-y-4">
-                    <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                      <span>Sinergias & Pontos Fortes Cruzados</span>
+                <div className="bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <span>Análise Cruzada de Alinhamento (Convergência × Tensão × Divergência)</span>
                     </h4>
-                    <div className="space-y-2 text-xs">
-                      {integratedFit.synergies.map((syn, idx) => (
-                        <div key={idx} className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 text-emerald-900 dark:text-emerald-200 leading-relaxed font-medium">
-                          • {syn}
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Cruzamento inteligente entre Motivação Profissional (RIASEC), Fatores de Personalidade (Big Five) e Comportamento Situacional.
+                    </p>
                   </div>
 
-                  {/* Contradictions */}
-                  <div className="bg-white dark:bg-slate-950/80 border border-amber-200 dark:border-amber-900/60 rounded-3xl p-6 shadow-sm space-y-4">
-                    <h4 className="text-sm font-bold text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-amber-600" />
-                      <span>Análise de Contradições & Investigação</span>
-                    </h4>
-                    <div className="space-y-2 text-xs">
-                      {integratedFit.contradictions.length > 0 ? (
-                        integratedFit.contradictions.map((con, idx) => (
-                          <div key={idx} className="bg-amber-50 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 leading-relaxed">
-                            ⚠️ {con}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl text-slate-600 dark:text-slate-400">
-                          Nenhuma contradição significativa detectada entre perfil motivacional (RIASEC) e padrão comportamental (Big Five).
-                        </div>
-                      )}
-                    </div>
+                  <div className="space-y-4">
+                    {/* 🟢 Convergências */}
+                    {integratedFit.convergences.map((item, idx) => (
+                      <div key={`conv-${idx}`} className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 p-4 rounded-2xl space-y-1.5">
+                        <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300 block">{item.title}</span>
+                        <p className="text-xs text-emerald-900 dark:text-emerald-200">{item.description}</p>
+                        <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400"><strong>Recomendação:</strong> {item.recommendation}</p>
+                      </div>
+                    ))}
+
+                    {/* 🟡 Tensões */}
+                    {integratedFit.tensions.map((item, idx) => (
+                      <div key={`tens-${idx}`} className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-4 rounded-2xl space-y-1.5">
+                        <span className="text-xs font-extrabold text-amber-800 dark:text-amber-300 block">{item.title}</span>
+                        <p className="text-xs text-amber-900 dark:text-amber-200">{item.description}</p>
+                        <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400"><strong>Como Aprofundar em Entrevista:</strong> {item.recommendation}</p>
+                      </div>
+                    ))}
+
+                    {/* 🔴 Divergências */}
+                    {integratedFit.divergences.map((item, idx) => (
+                      <div key={`div-${idx}`} className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 p-4 rounded-2xl space-y-1.5">
+                        <span className="text-xs font-extrabold text-rose-800 dark:text-rose-300 block">{item.title}</span>
+                        <p className="text-xs text-rose-900 dark:text-rose-200">{item.description}</p>
+                        <p className="text-[11px] font-semibold text-rose-700 dark:text-rose-400"><strong>Ponto Crítico:</strong> {item.recommendation}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

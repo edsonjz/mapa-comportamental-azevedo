@@ -37,6 +37,13 @@ export function getFitBadgeClass(overallFit: number): string {
   return 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-700';
 }
 
+export interface AlignmentItem {
+  type: 'convergencia' | 'tensao' | 'divergencia';
+  title: string;
+  description: string;
+  recommendation: string;
+}
+
 export interface IntegratedFitResult {
   jobProfile: JobProfile;
   personalityFit: number;
@@ -44,6 +51,10 @@ export interface IntegratedFitResult {
   interestFit: number;
   overallFit: number;
   fitClassification: string;
+  dynamicStyleSummary: string;
+  convergences: AlignmentItem[];
+  tensions: AlignmentItem[];
+  divergences: AlignmentItem[];
   synergies: string[];
   contradictions: string[];
   topMatchingRoles: Array<{ name: string; score: number }>;
@@ -54,6 +65,138 @@ export interface IntegratedFitResult {
     potential_risks: string[];
     strengths_to_explore: string[];
   };
+}
+
+export function generateDynamicStyleSummary(scores: AssessmentScores): string {
+  const isHighA = scores.agreeableness_score >= 65;
+  const isHighMS = scores.social_maturity_score >= 65;
+  const isLowC = scores.conscientiousness_score < 45;
+  const isLowOR = scores.operational_orientation_score < 45;
+  const isLowES = scores.emotional_stability_score < 45;
+
+  let summary = '';
+
+  if (isHighA && isHighMS) {
+    summary += 'Apresenta forte orientação interpessoal, com elevada amabilidade e maturidade social. Demonstra potencial para atividades de atendimento que dependam de empatia, paciência e compreensão das necessidades do cidadão. ';
+  } else if (scores.extraversion_score >= 65) {
+    summary += 'Demonstra perfil comunicativo e expansivo, com boa facilidade para estabelecer contatos iniciais e engajar o interlocutor. ';
+  } else {
+    summary += 'Apresenta perfil reservado e focado, atuando com escuta atenta e objetividade nos atendimentos. ';
+  }
+
+  if (isLowC || isLowOR) {
+    summary += 'Como ponto de atenção, apresenta menor aderência a ambientes altamente estruturados e orientados por controle operacional rígido, aspecto que deve ser aprofundado em entrevista. ';
+  } else if (scores.conscientiousness_score >= 65 && scores.operational_orientation_score >= 65) {
+    summary += 'Demonstra forte rigor procedural, organização sistemática e aderência a scripts e regras operacionais. ';
+  }
+
+  if (isLowES) {
+    summary += 'Recomenda-se observar em entrevista a capacidade de autorregulação emocional em momentos de picos de demanda ou chamadas de alta fricção.';
+  } else if (scores.emotional_stability_score >= 65) {
+    summary += 'Exibe excelente tolerância ao estresse e controle emocional mesmo sob pressão continuada.';
+  }
+
+  return summary.trim();
+}
+
+export function analyzeTripleAlignment(scores: AssessmentScores): {
+  convergences: AlignmentItem[];
+  tensions: AlignmentItem[];
+  divergences: AlignmentItem[];
+} {
+  const convergences: AlignmentItem[] = [];
+  const tensions: AlignmentItem[] = [];
+  const divergences: AlignmentItem[] = [];
+
+  const rS = scores.riasec_s_score ?? 0;
+  const rC = scores.riasec_c_score ?? 0;
+  const rI = scores.riasec_i_score ?? 0;
+  const rE = scores.riasec_e_score ?? 0;
+
+  const hasRiasecData = (rS + rC + rI + rE + (scores.riasec_r_score ?? 0) + (scores.riasec_a_score ?? 0)) > 0;
+
+  // 1. Convergências
+  if (scores.agreeableness_score >= 60 && scores.social_maturity_score >= 60 && (rS >= 60 || !hasRiasecData)) {
+    convergences.push({
+      type: 'convergencia',
+      title: '🟢 Forte Orientação Relacional Integrada',
+      description: 'Alta empatia (Big Five), maturidade social situacional e interesse motivacional por pessoas (RIASEC Social).',
+      recommendation: 'Excelente aptidão para atendimento receptivo, ouvidoria e suporte humanizado.'
+    });
+  }
+
+  if (scores.openness_score >= 60 && scores.adaptability_score >= 60 && (rI >= 55 || !hasRiasecData)) {
+    convergences.push({
+      type: 'convergencia',
+      title: '🟢 Aprendizagem e Investigação Prática',
+      description: 'Elevada abertura a novidades, rápida assimilação de sistemas e interesse por entender causas de problemas.',
+      recommendation: 'Ideal para suporte técnico de nível 2, canais digitais e produtos com roteiros mutáveis.'
+    });
+  }
+
+  if (convergences.length === 0) {
+    convergences.push({
+      type: 'convergencia',
+      title: '🟢 Perfil de Atuação Equilibrado',
+      description: 'Demonstra flexibilidade operacional sem extremos comportamentais rígidos.',
+      recommendation: 'Apto para posições multifuncionais de atendimento geral.'
+    });
+  }
+
+  // 2. Tensões (Interesse existe, mas comportamento exige adaptação)
+  if (hasRiasecData && rC >= 60 && (scores.conscientiousness_score < 50 || scores.operational_orientation_score < 50)) {
+    tensions.push({
+      type: 'tensao',
+      title: '🟡 Tensão: Interesse por Processos vs Rigor Comportamental',
+      description: 'Demonstra atração pela ideia de trabalhar em ambiente organizado (RIASEC Convencional), mas apresenta menor tendência comportamental para seguir rotinas altamente rígidas (Conscienciosidade/Orientação Operacional).',
+      recommendation: 'Aprofundar em entrevista: verificar se consegue manter disciplina em checagens diárias repetitivas.'
+    });
+  }
+
+  if (hasRiasecData && rS >= 60 && (scores.extraversion_score < 45 && scores.agreeableness_score >= 65)) {
+    tensions.push({
+      type: 'tensao',
+      title: '🟡 Tensão: Interesse Relacional com Perfil Reservado',
+      description: 'Gosta de ajudar pessoas (RIASEC Social), mas possui extroversão baixa. Não precisa ser expansivo para ser empático.',
+      recommendation: 'Excelente para atendimento receptivo/chat, onde a escuta atenta supera a necessidade de extroversão.'
+    });
+  }
+
+  if (hasRiasecData && rE >= 60 && scores.extraversion_score < 45) {
+    tensions.push({
+      type: 'tensao',
+      title: '🟡 Tensão: Motivação por Resultados vs Menor Expansividade',
+      description: 'Interesse por negociação e metas (RIASEC Empreendedor), porém estilo pessoal mais reservado.',
+      recommendation: 'Investigar se prefere negociações por canais escritos ou vendas consultivas individuais.'
+    });
+  }
+
+  // 3. Divergências (Interesse e Comportamento em direções opostas)
+  if (scores.emotional_stability_score < 40 && scores.resilience_score < 50) {
+    divergenciasPush(divergences, {
+      type: 'divergencia',
+      title: '🔴 Ponto Crítico: Vulnerabilidade a Alta Pressão',
+      description: 'Estabilidade Emocional e Resiliência baixas indicam sensibilidade elevada em chamadas com clientes agressivos.',
+      recommendation: 'Recomenda-se evitar operações de cobrança agressiva, retenção difícil ou chamadas críticas sem supervisão.'
+    });
+  }
+
+  if (hasRiasecData && rC >= 65 && scores.conscientiousness_score < 35 && scores.operational_orientation_score < 30) {
+    divergenciasPush(divergences, {
+      type: 'divergencia',
+      title: '🔴 Divergência: Motivação Convencional vs Baixíssima Orientação Procedural',
+      description: 'Desejo por regras claras contrasta com comportamento prático de informalidade e omissão de etapas.',
+      recommendation: 'Investigar detalhadamente em entrevista o histórico de cumprimento de normas e pontualidade.'
+    });
+  }
+
+  return { convergences, tensions, divergences };
+}
+
+function divergenciasPush(arr: AlignmentItem[], item: AlignmentItem) {
+  if (!arr.some(i => i.title === item.title)) {
+    arr.push(item);
+  }
 }
 
 export function calculateIntegratedFit(
@@ -82,12 +225,21 @@ export function calculateIntegratedFit(
   const situationalFit = Math.max(0, Math.min(100, Math.round(100 - avgSituationalDist)));
 
   // 3. Interest Fit (RIASEC distance)
-  const rScore = scores.riasec_r_score ?? 30;
+  const hasRiasecData = (
+    (scores.riasec_r_score ?? 0) + 
+    (scores.riasec_i_score ?? 0) + 
+    (scores.riasec_a_score ?? 0) + 
+    (scores.riasec_s_score ?? 0) + 
+    (scores.riasec_e_score ?? 0) + 
+    (scores.riasec_c_score ?? 0)
+  ) > 0;
+
+  const rScore = scores.riasec_r_score ?? 33;
   const iScore = scores.riasec_i_score ?? 50;
-  const aScore = scores.riasec_a_score ?? 30;
-  const sScore = scores.riasec_s_score ?? 70;
+  const aScore = scores.riasec_a_score ?? 42;
+  const sScore = scores.riasec_s_score ?? 75;
   const eScore = scores.riasec_e_score ?? 50;
-  const cScore = scores.riasec_c_score ?? 70;
+  const cScore = scores.riasec_c_score ?? 67;
 
   const rDiff = Math.abs(rScore - targetJob.realistic_weight);
   const iDiff = Math.abs(iScore - targetJob.investigative_weight);
@@ -96,7 +248,7 @@ export function calculateIntegratedFit(
   const entDiff = Math.abs(eScore - targetJob.enterprising_weight);
   const convDiff = Math.abs(cScore - targetJob.conventional_weight);
   const avgRiasecDist = (rDiff + iDiff + artDiff + sDiff + entDiff + convDiff) / 6;
-  const interestFit = Math.max(0, Math.min(100, Math.round(100 - avgRiasecDist)));
+  const interestFit = hasRiasecData ? Math.max(0, Math.min(100, Math.round(100 - avgRiasecDist))) : 60;
 
   // 4. Overall Fit: 35% Personality + 30% Situational + 25% Interest + 10% Operational Orientation
   const overallFit = Math.max(0, Math.min(100, Math.round(
@@ -107,39 +259,11 @@ export function calculateIntegratedFit(
   )));
 
   const fitClassification = getFitClassification(overallFit);
+  const dynamicStyleSummary = generateDynamicStyleSummary(scores);
+  const { convergences, tensions, divergences } = analyzeTripleAlignment(scores);
 
-  // 5. Detect Synergies
-  const synergies: string[] = [];
-  if (scores.agreeableness_score >= 65 && sScore >= 65 && scores.social_maturity_score >= 65) {
-    synergies.push('Forte orientação relacional: combina empatia interpessoal, alta maturidade social e interesse motivacional pelo atendimento.');
-  }
-  if (scores.conscientiousness_score >= 65 && cScore >= 65 && scores.operational_orientation_score >= 65) {
-    synergies.push('Forte aderência a ambientes estruturados: alinhamento perfeito entre disciplina pessoal, organização procedural e rotinas de controle.');
-  }
-  if (scores.openness_score >= 65 && iScore >= 65 && scores.adaptability_score >= 65) {
-    synergies.push('Elevada tendência para aprendizagem e solução de problemas: gosto pela investigação alinhado à facilidade em assimilar novos sistemas.');
-  }
-  if (scores.extraversion_score >= 65 && eScore >= 65 && scores.social_maturity_score >= 65) {
-    synergies.push('Potencial elevado para funções de influência e negociação: energia comunicativa com foco em metas comerciais e maturidade interpessoal.');
-  }
-  if (synergies.length === 0) {
-    synergies.push('Perfil de atuação equilibrado com flexibilidade operacional entre diferentes tipos de demanda.');
-  }
-
-  // 6. Detect Contradictions
-  const contradictions: string[] = [];
-  if (sScore >= 65 && (scores.agreeableness_score < 45 || scores.social_maturity_score < 45)) {
-    contradictions.push('O candidato demonstra interesse elevado por atividades envolvendo pessoas (RIASEC Social), porém seu padrão comportamental atual apresenta menor tendência à adaptação relacional. Recomenda-se aprofundar essa dimensão durante a entrevista.');
-  }
-  if (eScore >= 65 && scores.extraversion_score < 45) {
-    contradictions.push('Existe interesse motivacional por resultados e influência (RIASEC Empreendedor), porém o padrão de interação social indica preferência por menor exposição. Avaliar em entrevista como essa preferência se manifesta na prática.');
-  }
-  if (cScore >= 65 && scores.conscientiousness_score < 45) {
-    contradictions.push('Demonstra preferência por organização e processos (RIASEC Convencional), mas a pontuação comportamental indica tendência à informalidade. Investigar consistência no cumprimento de checklists.');
-  }
-  if (iScore >= 65 && scores.openness_score < 45) {
-    contradictions.push('Apresenta atração por analisar dados e causas (RIASEC Investigativo), mas menor abertura natural a teorias abstratas. Avaliar foco em investigações essencialmente práticas.');
-  }
+  const synergies = convergences.map(c => `${c.title}: ${c.description}`);
+  const contradictions = [...tensions, ...divergences].map(t => `${t.title}: ${t.description}`);
 
   // 7. Rank all job profiles by Overall Fit
   const rankedRoles = jobProfiles.map(job => {
@@ -181,8 +305,8 @@ export function calculateIntegratedFit(
   const investigate_points: string[] = [
     `Verificar o alinhamento comportamental do candidato com as exigências de ${targetJob.name}.`,
     `Explorar como lida com variações de rotina e cumprimento de procedimentos operacionais.`,
-    contradictions.length > 0 
-      ? 'Aprofundar os pontos de contradição identificados no cruzamento comportamental x motivacional.'
+    tensions.length > 0 
+      ? `Aprofundar a tensão identificada: ${tensions[0].title}`
       : 'Avaliar a estabilidade emocional e resiliência em momentos de picos de atendimento.'
   ];
 
@@ -214,6 +338,10 @@ export function calculateIntegratedFit(
     interestFit,
     overallFit,
     fitClassification,
+    dynamicStyleSummary,
+    convergences,
+    tensions,
+    divergences,
     synergies,
     contradictions,
     topMatchingRoles,
