@@ -234,12 +234,12 @@ export function calculateIntegratedFit(
     (scores.riasec_c_score ?? 0)
   ) > 0;
 
-  const rScore = scores.riasec_r_score ?? 33;
-  const iScore = scores.riasec_i_score ?? 50;
-  const aScore = scores.riasec_a_score ?? 42;
-  const sScore = scores.riasec_s_score ?? 75;
-  const eScore = scores.riasec_e_score ?? 50;
-  const cScore = scores.riasec_c_score ?? 67;
+  const rScore = scores.riasec_r_score ?? 0;
+  const iScore = scores.riasec_i_score ?? 0;
+  const aScore = scores.riasec_a_score ?? 0;
+  const sScore = scores.riasec_s_score ?? 0;
+  const eScore = scores.riasec_e_score ?? 0;
+  const cScore = scores.riasec_c_score ?? 0;
 
   const rDiff = Math.abs(rScore - targetJob.realistic_weight);
   const iDiff = Math.abs(iScore - targetJob.investigative_weight);
@@ -248,7 +248,7 @@ export function calculateIntegratedFit(
   const entDiff = Math.abs(eScore - targetJob.enterprising_weight);
   const convDiff = Math.abs(cScore - targetJob.conventional_weight);
   const avgRiasecDist = (rDiff + iDiff + artDiff + sDiff + entDiff + convDiff) / 6;
-  const interestFit = hasRiasecData ? Math.max(0, Math.min(100, Math.round(100 - avgRiasecDist))) : 60;
+  const interestFit = hasRiasecData ? Math.max(0, Math.min(100, Math.round(100 - avgRiasecDist))) : 0;
 
   // 4. Overall Fit: 35% Personality + 30% Situational + 25% Interest + 10% Operational Orientation
   const overallFit = Math.max(0, Math.min(100, Math.round(

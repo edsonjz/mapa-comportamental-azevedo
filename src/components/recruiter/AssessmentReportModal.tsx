@@ -438,13 +438,13 @@ export const AssessmentReportModal: React.FC<AssessmentReportModalProps> = ({ as
                 {((scores.riasec_s_score ?? 0) + (scores.riasec_c_score ?? 0) + (scores.riasec_i_score ?? 0) + (scores.riasec_r_score ?? 0)) > 0 ? (
                   <>
                     <RiasecBarChart
-                      rScore={scores.riasec_r_score ?? 33}
-                      iScore={scores.riasec_i_score ?? 50}
-                      aScore={scores.riasec_a_score ?? 42}
-                      sScore={scores.riasec_s_score ?? 75}
-                      eScore={scores.riasec_e_score ?? 50}
-                      cScore={scores.riasec_c_score ?? 67}
-                      code={scores.riasec_code || 'S-C-I'}
+                      rScore={scores.riasec_r_score ?? 0}
+                      iScore={scores.riasec_i_score ?? 0}
+                      aScore={scores.riasec_a_score ?? 0}
+                      sScore={scores.riasec_s_score ?? 0}
+                      eScore={scores.riasec_e_score ?? 0}
+                      cScore={scores.riasec_c_score ?? 0}
+                      code={scores.riasec_code || 'Pendente'}
                     />
 
                     {scores.riasec_summary && (
