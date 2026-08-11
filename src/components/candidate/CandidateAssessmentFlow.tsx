@@ -168,21 +168,12 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
   const handleSubmitAssessment = async () => {
     setSubmitting(true);
     try {
-      // Mark assessment completed
-      const { error: updateError } = await supabase
-        .from('assessments')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', assessmentId);
-
-      if (updateError) throw updateError;
-
-      // Calculate scores on server
-      await supabase.rpc('calculate_and_store_assessment_scores', {
+      // Use SECURITY DEFINER RPC to complete the assessment (bypasses RLS for anon users)
+      const { error: completeError } = await supabase.rpc('complete_candidate_assessment', {
         p_assessment_id: assessmentId
       });
+
+      if (completeError) throw completeError;
 
       setStage('completed');
     } catch (err: any) {
