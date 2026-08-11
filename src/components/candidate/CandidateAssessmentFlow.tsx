@@ -86,8 +86,13 @@ export const CandidateAssessmentFlow: React.FC<CandidateAssessmentFlowProps> = (
       });
       setRiasecAnswers(rAnsMap);
 
-      if (assessmentObj.status === 'completed') {
+      const hasCompletedRiasec = (data.riasec_answers || []).length >= 24;
+
+      if (assessmentObj.status === 'completed' && hasCompletedRiasec) {
         setStage('completed');
+      } else if (assessmentObj.status === 'completed' && !hasCompletedRiasec) {
+        // If behavioral part was completed before RIASEC function was active, resume at Stage 2 transition
+        setStage('transition');
       }
     } catch (err: any) {
       console.error('Erro ao carregar avaliação:', err);
