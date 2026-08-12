@@ -48,7 +48,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 1,
     text: 'Você chega para trabalhar e percebe que o procedimento de uma demanda foi alterado naquela manhã.',
     optionA: 'Procuro entender rapidamente o que mudou e adapto minha forma de atendimento.',
-    optionB: 'Prefiro seguir o procedimento anterior até ter certeza de como a mudança deve ser aplicada.',
+    optionB: 'Prefiro conferir a orientação com cautela antes de alterar meu padrão habitual de atendimento.',
     weightsA: { AD: 2, O: 1.5, FC: 1 },
     weightsB: { C: 2, OR: 1.5 },
     measures: ['Adaptabilidade', 'Abertura']
@@ -58,7 +58,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 2,
     text: 'Depois de uma ligação muito difícil, você encerra o atendimento.',
     optionA: 'Procuro deixar aquela situação para trás e seguir normalmente para o próximo atendimento.',
-    optionB: 'Fico pensando no que aconteceu para entender se poderia ter conduzido de outra maneira.',
+    optionB: 'Analiso os pontos marcantes da conversa para identificar aprendizados para os próximos atendimentos.',
     weightsA: { RA: 2, ES: 1.5 },
     weightsB: { O: 2, MS: 1 },
     measures: ['Resiliência', 'Abertura', 'Autorreflexão']
@@ -68,7 +68,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 3,
     text: 'Um colega procura você para reclamar de uma situação que aconteceu com ele.',
     optionA: 'Primeiro procuro entender o que aconteceu antes de dar minha opinião.',
-    optionB: 'Já apresento minha visão sobre como ele poderia resolver.',
+    optionB: 'Compartilho diretamente uma sugestão objetiva baseada no que deu certo para mim.',
     weightsA: { MS: 2, A: 1.5 },
     weightsB: { AS: 2, E: 1 },
     measures: ['Maturidade Social', 'Escuta', 'Assertividade']
@@ -78,7 +78,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 4,
     text: 'Você percebe que está realizando uma atividade repetitiva há várias horas.',
     optionA: 'Procuro uma forma de tornar o processo mais eficiente.',
-    optionB: 'Continuo seguindo exatamente o procedimento definido.',
+    optionB: 'Mantenho o foco e o ritmo constante na execução do padrão estabelecido.',
     weightsA: { O: 2, FC: 1.5 },
     weightsB: { OR: 2, C: 1.5 },
     measures: ['Abertura', 'Orientação Operacional']
@@ -88,7 +88,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 5,
     text: 'Seu supervisor aponta um erro cometido por você.',
     optionA: 'Procuro entender o erro e corrigir a situação.',
-    optionB: 'Explico primeiro os motivos que levaram ao erro.',
+    optionB: 'Contextualizo o cenário em que a decisão foi tomada para alinhar as expectativas com o supervisor.',
     weightsA: { A: 2, ES: 1, C: 1 },
     weightsB: { AS: 1.5, E: 1 },
     measures: ['Amabilidade', 'Estabilidade', 'Responsabilidade']
@@ -98,7 +98,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 6,
     text: 'Você percebe que um colega está tendo dificuldade para acompanhar a operação.',
     optionA: 'Ofereço ajuda mesmo que isso não faça parte diretamente da minha atividade.',
-    optionB: 'Continuo concentrado na minha própria atividade.',
+    optionB: 'Mantenho o foco nas minhas entregas para garantir que minha fila individual não seja impactada.',
     weightsA: { A: 2, MS: 1.5, E: 0.5 },
     weightsB: { C: 1.5, OR: 1.5 },
     measures: ['Amabilidade', 'Social']
@@ -108,7 +108,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 7,
     text: 'Durante um atendimento, o cidadão muda várias vezes o que está solicitando.',
     optionA: 'Faço perguntas para reorganizar a situação e descobrir exatamente o que ele precisa.',
-    optionB: 'Peço que ele explique novamente desde o início.',
+    optionB: 'Solicito a confirmação do histórico completo para garantir o alinhamento de todas as informações.',
     weightsA: { FC: 2, MS: 1, AD: 1 },
     weightsB: { C: 1.5, OR: 1 },
     measures: ['Flexibilidade Cognitiva', 'Investigativo', 'Escuta']
@@ -128,7 +128,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 9,
     text: 'Durante uma discussão profissional, você percebe que sua opinião está sendo questionada.',
     optionA: 'Defendo meu ponto de vista, mas considero os argumentos apresentados.',
-    optionB: 'Prefiro evitar o confronto e aceitar a decisão do grupo.',
+    optionB: 'Priorizo a coesão da equipe e busco convergência com a decisão coletiva.',
     weightsA: { AS: 2, FC: 1, E: 1 },
     weightsB: { A: 1.5, ES: 1 },
     measures: ['Assertividade', 'Flexibilidade', 'Extroversão']
@@ -138,7 +138,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 10,
     text: 'Um cidadão demonstra irritação com você, embora o problema não tenha sido causado pela sua equipe.',
     optionA: 'Procuro manter o atendimento profissional e resolver o que estiver ao meu alcance.',
-    optionB: 'Explico que a situação não foi causada por mim antes de continuar.',
+    optionB: 'Clarifico os limites institucionais do meu canal antes de direcionar os próximos passos.',
     weightsA: { ES: 2, RA: 1.5, A: 1 },
     weightsB: { AS: 1.5, E: 1 },
     measures: ['Estabilidade Emocional', 'Resiliência', 'Amabilidade']
@@ -148,7 +148,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 11,
     text: 'Você recebe uma tarefa sem todas as instruções.',
     optionA: 'Procuro informações e começo a estruturar uma solução.',
-    optionB: 'Prefiro aguardar instruções mais completas.',
+    optionB: 'Prefiro solicitar o detalhamento oficial do procedimento antes de iniciar a execução.',
     weightsA: { O: 2, AD: 1.5, FC: 1 },
     weightsB: { C: 1.5, OR: 1.5 },
     measures: ['Autonomia', 'Flexibilidade', 'Abertura']
@@ -178,7 +178,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 14,
     text: 'Você percebe que cometeu um erro que provavelmente ninguém percebeu.',
     optionA: 'Corrijo e informo o ocorrido.',
-    optionB: 'Corrijo e sigo normalmente, já que o problema foi resolvido.',
+    optionB: 'Efetuo a correção de forma ágil e dou continuidade à rotina de trabalho.',
     weightsA: { C: 2, MS: 1.5, AS: 0.5 },
     weightsB: { AD: 1, ES: 1 },
     measures: ['Responsabilidade', 'Conscienciosidade', 'Accountability']
@@ -188,7 +188,7 @@ export const V2_BEHAVIOR_QUESTIONS: V2BehaviorQuestion[] = [
     questionNumber: 15,
     text: 'Ao final de um dia muito difícil:',
     optionA: 'Consigo deixar os problemas do trabalho para trás com relativa facilidade.',
-    optionB: 'Continuo pensando nas situações que aconteceram durante o dia.',
+    optionB: 'Dedico um tempo para refletir sobre os desafios enfrentados antes de me desligar.',
     weightsA: { RA: 2, ES: 2 },
     weightsB: { O: 1.5, C: 1 },
     measures: ['Resiliência', 'Estabilidade Emocional']
