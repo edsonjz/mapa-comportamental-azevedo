@@ -472,8 +472,8 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
   });
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden text-slate-100 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[96vw] xl:max-w-7xl w-full p-5 sm:p-7 shadow-2xl relative overflow-hidden text-slate-100 h-[92vh] max-h-[950px] flex flex-col">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
@@ -602,7 +602,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
             </div>
 
             {/* Operators Table */}
-            <div className="flex-1 overflow-y-auto border border-slate-800 rounded-2xl bg-slate-950">
+            <div className="flex-1 overflow-x-auto overflow-y-auto border border-slate-800 rounded-2xl bg-slate-950">
               {loading ? (
                 <div className="p-8 text-center text-slate-400 text-xs">Carregando operadores...</div>
               ) : filteredOperators.length === 0 ? (
@@ -613,14 +613,14 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                 </div>
               ) : (
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-900 sticky top-0 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
+                  <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3 px-3.5">Nome do Colaborador</th>
-                      <th className="py-3 px-3.5">Cargo</th>
-                      <th className="py-3 px-3.5">Equipe</th>
-                      <th className="py-3 px-3.5">Supervisor</th>
-                      <th className="py-3 px-3.5 text-center">Link Exclusivo da Pesquisa</th>
-                      <th className="py-3 px-3.5 text-right">Ações</th>
+                      <th className="py-3.5 px-4 min-w-[280px]">Nome do Colaborador</th>
+                      <th className="py-3.5 px-4 min-w-[180px]">Cargo</th>
+                      <th className="py-3.5 px-4 min-w-[160px]">Equipe</th>
+                      <th className="py-3.5 px-4 min-w-[160px]">Supervisor</th>
+                      <th className="py-3.5 px-4 min-w-[170px] text-center">Link Exclusivo da Pesquisa</th>
+                      <th className="py-3.5 px-4 min-w-[100px] text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
@@ -631,22 +631,22 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
 
                       return (
                         <tr key={op.id} className="hover:bg-slate-900/50 transition-colors">
-                          <td className="py-3 px-3.5 font-bold text-white whitespace-nowrap">
-                            {op.name}
+                          <td className="py-3 px-4 font-bold text-white">
+                            <span className="block text-slate-100 font-bold">{op.name}</span>
                             {op.email && <div className="text-[10px] text-slate-400 font-normal">{op.email}</div>}
                           </td>
-                          <td className="py-3 px-3.5 text-slate-300 whitespace-nowrap">{op.job_role}</td>
-                          <td className="py-3 px-3.5 text-blue-400 font-semibold whitespace-nowrap">
+                          <td className="py-3 px-4 text-slate-300">{op.job_role}</td>
+                          <td className="py-3 px-4 text-blue-400 font-semibold">
                             {team ? team.name : <span className="text-slate-500 font-normal">Sem Equipe</span>}
                           </td>
-                          <td className="py-3 px-3.5 text-slate-300 whitespace-nowrap">
+                          <td className="py-3 px-4 text-slate-300">
                             {sup ? sup.name : <span className="text-slate-500 font-normal">Sem Supervisor</span>}
                           </td>
-                          <td className="py-3 px-3.5 text-center">
+                          <td className="py-3 px-4 text-center">
                             <button
                               type="button"
                               onClick={() => handleCopyLink(op.access_token)}
-                              className={`px-3 py-1.5 rounded-xl font-semibold text-[11px] border transition-all flex items-center justify-center gap-1.5 mx-auto cursor-pointer ${
+                              className={`px-3.5 py-1.5 rounded-xl font-semibold text-[11px] border transition-all flex items-center justify-center gap-1.5 mx-auto cursor-pointer whitespace-nowrap ${
                                 isCopied
                                   ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
                                   : 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800 hover:border-blue-500'
@@ -665,7 +665,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                               )}
                             </button>
                           </td>
-                          <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                          <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
