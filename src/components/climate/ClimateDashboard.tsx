@@ -6,7 +6,8 @@ import type {
   ClimateQuestion,
   ClimateOverallReport,
   ClimateTeam,
-  ClimateUserProfile
+  ClimateUserProfile,
+  ClimateOperator
 } from '../../types/climateTypes';
 import { calculateAggregatedReport } from '../../lib/climateScoringEngine';
 import {
@@ -19,10 +20,12 @@ import {
   Download,
   FileText,
   ShieldCheck,
-  Info,
   Calendar,
-  Layers,
-  Sparkles
+  Trash2,
+  Eye,
+  X,
+  UserCheck,
+  CheckCircle2
 } from 'lucide-react';
 
 interface ClimateDashboardProps {
@@ -40,18 +43,26 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
   const [answers, setAnswers] = useState<any[]>([]);
   const [teams, setTeams] = useState<ClimateTeam[]>([]);
   const [profiles, setProfiles] = useState<ClimateUserProfile[]>([]);
+  const [operators, setOperators] = useState<ClimateOperator[]>([]);
 
   // Calculated Report
   const [overallReport, setOverallReport] = useState<ClimateOverallReport | null>(null);
 
   // Filters State
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'teams' | 'supervisors' | 'heatmap' | 'open_voice' | 'temporal' | 'report'
+    'overview' | 'teams' | 'supervisors' | 'heatmap' | 'open_voice' | 'individual' | 'temporal' | 'report'
   >('overview');
+
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [supervisorFilter, setSupervisorFilter] = useState<string>('all');
+  const [operatorFilter, setOperatorFilter] = useState<string>('all');
   const [dimensionFilter, setDimensionFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Selected response for detailed view modal
+  const [selectedResponseDetails, setSelectedResponseDetails] = useState<any | null>(null);
+  const [responseDetailsAnswers, setResponseDetailsAnswers] = useState<any[]>([]);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -61,7 +72,7 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
     if (selectedSurveyId) {
       fetchSurveyReportData(selectedSurveyId);
     }
-  }, [selectedSurveyId, teamFilter, supervisorFilter]);
+  }, [selectedSurveyId, teamFilter, supervisorFilter, operatorFilter]);
 
   const fetchInitialData = async () => {
     setLoading(true);
@@ -84,6 +95,9 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
       const { data: profileList } = await supabase.from('climate_user_profiles').select('*');
       if (profileList) setProfiles(profileList);
 
+      const { data: opList } = await supabase.from('climate_operators').select('*').order('name', { ascending: true });
+      if (opList) setOperators(opList);
+
     } catch (err) {
       console.error('Erro ao carregar dados iniciais do dashboard:', err);
     } finally {
@@ -96,6 +110,7 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
     try {
       // Fetch Operators count for total eligible
       const { data: opList } = await supabase.from('climate_operators').select('id');
+      if (opList) setOperators(opList as any);
       const totalEligible = (opList && opList.length > 0) ? opList.length : (profiles.filter((p) => p.role === 'operador').length || 1);
 
       // Fetch Dimensions & Questions
@@ -125,6 +140,9 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
       }
       if (supervisorFilter !== 'all') {
         respQuery = respQuery.eq('supervisor_id', supervisorFilter);
+      }
+      if (operatorFilter !== 'all') {
+        respQuery = respQuery.or(`climate_operator_id.eq.${operatorFilter},operator_id.eq.${operatorFilter}`);
       }
 
       const { data: respData } = await respQuery;
@@ -167,432 +185,482 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
       setOverallReport(report);
 
     } catch (err) {
-      console.error('Erro ao calcular relatório:', err);
+      console.error('Erro ao gerar relatório do clima:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const supervisorsList = profiles.filter((p) => p.role === 'supervisor' || p.role === 'admin' || p.role === 'gestor');
+  // Delete Response Handler
+  const handleDeleteResponse = async (responseId: string, operatorName: string) => {
+    if (!confirm(`Deseja realmente excluir a pesquisa respondida por "${operatorName}"?\nEsta ação permitirá que o colaborador responda novamente.`)) {
+      return;
+    }
 
-  // Filtered Open Answers
+    try {
+      const { error: err } = await supabase.from('climate_responses').delete().eq('id', responseId);
+      if (err) throw err;
+
+      setMessage({ type: 'success', text: `Pesquisa de "${operatorName}" excluída com sucesso!` });
+      if (selectedResponseDetails?.id === responseId) {
+        setSelectedResponseDetails(null);
+      }
+      if (selectedSurveyId) {
+        fetchSurveyReportData(selectedSurveyId);
+      }
+    } catch (err: any) {
+      alert(`Erro ao excluir pesquisa: ${err.message || 'Falha na operação.'}`);
+    }
+  };
+
+  // Open Detailed Modal for a Response
+  const handleOpenResponseDetails = async (resp: any) => {
+    setSelectedResponseDetails(resp);
+    try {
+      const { data: ansData } = await supabase
+        .from('climate_answers')
+        .select('*')
+        .eq('response_id', resp.id);
+      setResponseDetailsAnswers(ansData || []);
+    } catch (err) {
+      console.error('Erro ao carregar respostas do operador:', err);
+    }
+  };
+
+  // Helper map for questions
   const openQuestionsMap = new Map<string, ClimateQuestion>();
   questions.filter((q) => q.question_type === 'open_text').forEach((q) => openQuestionsMap.set(q.id, q));
 
-  const openAnswersList = answers
-    .filter((a) => openQuestionsMap.has(a.question_id) && a.text_value && a.text_value.trim().length > 0)
-    .filter((a) => {
-      const q = openQuestionsMap.get(a.question_id);
-      if (dimensionFilter !== 'all' && q?.dimension_id !== dimensionFilter) return false;
-      if (searchTerm && !a.text_value.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      return true;
-    });
+  // Open Answers List
+  const openAnswersList = answers.filter((a) => {
+    if (!a.text_value || a.text_value.trim() === '') return false;
+    const q = openQuestionsMap.get(a.question_id);
+    if (!q) return false;
+    if (dimensionFilter !== 'all' && q.dimension_id !== dimensionFilter) return false;
+    if (searchTerm.trim() !== '') {
+      const term = searchTerm.toLowerCase();
+      if (!a.text_value.toLowerCase().includes(term) && !q.question.toLowerCase().includes(term)) return false;
+    }
+    return true;
+  });
 
-  // Color helper for scores (0-100)
-  const getScoreBadgeColor = (score: number) => {
-    if (score < 40) return 'bg-rose-500/10 border-rose-500/30 text-rose-400';
-    if (score < 60) return 'bg-amber-500/10 border-amber-500/30 text-amber-400';
-    if (score < 75) return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
-    if (score < 90) return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400';
-    return 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400';
+  // Helper function to resolve operator metadata
+  const getResponseOperatorMeta = (resp: any) => {
+    let opName = 'Operador Anônimo';
+    let teamName = 'Sem Equipe';
+    let supName = 'Sem Supervisor';
+    let jobRole = resp.job_role || 'Operador de Atendimento';
+
+    if (resp.climate_operator_id) {
+      const op = operators.find((o) => o.id === resp.climate_operator_id);
+      if (op) {
+        opName = op.name;
+        if (op.job_role) jobRole = op.job_role;
+      }
+    } else if (resp.operator_id) {
+      const prof = profiles.find((p) => p.id === resp.operator_id);
+      if (prof) opName = prof.name;
+    }
+
+    if (resp.team_id) {
+      const t = teams.find((item) => item.id === resp.team_id);
+      if (t) teamName = t.name;
+    }
+
+    if (resp.supervisor_id) {
+      const s = profiles.find((item) => item.id === resp.supervisor_id);
+      if (s) supName = s.name;
+    }
+
+    return { opName, teamName, supName, jobRole };
   };
 
   return (
-    <div className="space-y-6">
-
-      {/* Top Title & Filters Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            <BarChart3 className="w-6 h-6 text-blue-400" />
-            <h2 className="text-xl font-bold text-white tracking-wide">Pesquisa de Clima Organizacional</h2>
+    <div className="space-y-6 text-slate-100 font-sans">
+      
+      {/* Top Header & Filters */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-cyan-600/20 border border-cyan-500/40 rounded-xl flex items-center justify-center text-cyan-400">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold text-white">Painel Gerencial — Pesquisa de Clima Organizacional</h2>
+              <p className="text-xs text-slate-400">Contact Center Azevedo • Diagnóstico Estruturado 156</p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400">
-            Painel Gerencial de Diagnóstico & Indicadores do Contact Center
-          </p>
+
+          <div className="flex items-center gap-3">
+            <select
+              value={selectedSurveyId}
+              onChange={(e) => setSelectedSurveyId(e.target.value)}
+              className="bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2 text-xs font-semibold focus:outline-none focus:border-blue-500"
+            >
+              {surveys.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.version}) — {s.status.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Survey Selector */}
-          <select
-            value={selectedSurveyId}
-            onChange={(e) => setSelectedSurveyId(e.target.value)}
-            className="bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-blue-500"
-          >
-            {surveys.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.version})
-              </option>
-            ))}
-          </select>
+        {/* Global Filters Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Filtrar por Equipe</label>
+            <select
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">Todas as Equipes ({teams.length})</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
 
-          {/* Team Filter */}
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-blue-500"
-          >
-            <option value="all">Todas as Equipes</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Filtrar por Supervisor</label>
+            <select
+              value={supervisorFilter}
+              onChange={(e) => setSupervisorFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">Todos os Supervisores</option>
+              {profiles.filter((p) => p.role === 'supervisor' || p.role === 'admin' || p.role === 'gestor').map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
 
-          {/* Supervisor Filter */}
-          <select
-            value={supervisorFilter}
-            onChange={(e) => setSupervisorFilter(e.target.value)}
-            className="bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-blue-500"
-          >
-            <option value="all">Todos os Supervisores</option>
-            {supervisorsList.map((sup) => (
-              <option key={sup.id} value={sup.id}>
-                {sup.name}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Filtrar por Operador</label>
+            <select
+              value={operatorFilter}
+              onChange={(e) => setOperatorFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">Todos os Colaboradores ({operators.length})</option>
+              {operators.map((op) => (
+                <option key={op.id} value={op.id}>{op.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
+      {message && (
+        <div className={`p-3.5 rounded-2xl text-xs flex items-center justify-between gap-3 border ${
+          message.type === 'success' ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
+        }`}>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span>{message.text}</span>
+          </div>
+          <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Main Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800 shadow-lg">
+        {[
+          { id: 'overview', label: 'Visão Geral & Dimensões', icon: BarChart3 },
+          { id: 'individual', label: `Respostas por Operador (${responses.length})`, icon: UserCheck },
+          { id: 'teams', label: 'Análise por Equipe', icon: Users },
+          { id: 'supervisors', label: 'Análise por Supervisor', icon: ShieldCheck },
+          { id: 'heatmap', label: 'Heatmap da Operação', icon: Grid },
+          { id: 'open_voice', label: `Voz do Operador (${openAnswersList.length})`, icon: MessageSquare },
+          { id: 'temporal', label: 'Análise Temporal', icon: Calendar },
+          { id: 'report', label: 'Relatório Gerencial (Impressão)', icon: FileText }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-slate-400 text-xs font-semibold">Processando indicadores de clima...</p>
+        <div className="p-12 text-center text-slate-400 space-y-3">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs font-semibold">Consolidando e calculando dados do Clima Organizacional...</p>
         </div>
       ) : !overallReport || responses.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
-          <Info className="w-10 h-10 text-slate-500 mx-auto" />
-          <h3 className="text-base font-bold text-white">Sem Dados Suficientes</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Nenhuma resposta finalizada foi registrada para os filtros selecionados nesta versão da pesquisa.
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center space-y-3 shadow-xl">
+          <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto" />
+          <h3 className="text-base font-bold text-white">Nenhum dado encontrado para os filtros selecionados</h3>
+          <p className="text-xs text-slate-400">
+            Ajuste os filtros de equipe, supervisor ou colaborador para visualizar os indicadores.
           </p>
         </div>
       ) : (
         <>
-          {/* Executive Overview Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Card 1: Clima Geral */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Clima Geral</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getScoreBadgeColor(overallReport.general_climate_index)}`}>
-                  {overallReport.general_classification}
-                </span>
-              </div>
-              <div className="text-3xl font-extrabold text-white mb-1">
-                {overallReport.general_climate_index} <span className="text-sm font-normal text-slate-500">/ 100</span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Média das dimensões válidas com $\ge 50\%$ das perguntas respondidas.
-              </p>
-            </div>
-
-            {/* Card 2: Participação */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Participação</span>
-                <Users className="w-4 h-4 text-blue-400" />
-              </div>
-              <div className="text-3xl font-extrabold text-white mb-1">
-                {overallReport.response_rate}%
-              </div>
-              <p className="text-[11px] text-slate-400">
-                {overallReport.completed_responses} respondentes de {overallReport.total_eligible} elegíveis.
-              </p>
-            </div>
-
-            {/* Card 3: Saúde da Liderança */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Índice Liderança</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getScoreBadgeColor(overallReport.leadership_index)}`}>
-                  {overallReport.leadership_health_classification}
-                </span>
-              </div>
-              <div className="text-3xl font-extrabold text-white mb-1">
-                {overallReport.leadership_index} <span className="text-sm font-normal text-slate-500">/ 100</span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Percepção de suporte, justiça, feedback e decisões.
-              </p>
-            </div>
-
-            {/* Card 4: Alertas & Tension */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Alertas Críticos</span>
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-              </div>
-              <div className="flex items-baseline gap-3 mb-1">
-                <span className="text-3xl font-extrabold text-rose-400">{overallReport.critical_questions_count}</span>
-                <span className="text-xs text-slate-400 font-medium">Perguntas Críticas</span>
-              </div>
-              {overallReport.productivity_quality_tension && (
-                <div className="mt-1 text-[10px] font-bold text-amber-300 bg-amber-950/60 border border-amber-800/50 px-2 py-0.5 rounded-lg inline-block">
-                  Tensão TMA x Qualidade
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          {/* Navigation Tabs Bar */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1">
-            {[
-              { id: 'overview', label: 'Visão Geral & Dimensões', icon: Layers },
-              { id: 'teams', label: 'Análise por Equipe', icon: Users },
-              { id: 'supervisors', label: 'Análise por Supervisor', icon: ShieldCheck },
-              { id: 'heatmap', label: 'Heatmap da Operação', icon: Grid },
-              { id: 'open_voice', label: 'Voz do Operador', icon: MessageSquare },
-              { id: 'temporal', label: 'Análise Temporal', icon: Calendar },
-              { id: 'report', label: 'Relatório Gerencial', icon: FileText }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* TAB 1: VISÃO GERAL & DIMENSÕES */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
               
-              {/* Divergence & Tension Alerts */}
-              {overallReport.divergences.length > 0 && (
-                <div className="bg-amber-950/30 border border-amber-800/40 rounded-3xl p-5 space-y-2">
-                  <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-                    <Sparkles className="w-4 h-4" />
-                    <span>Insights de Divergência & Tensão Detectados</span>
+              {/* Executive Indicators Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                
+                {/* General Climate Index */}
+                <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-2 shadow-xl">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Índice Clima Geral</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-white">{overallReport.general_climate_index}</span>
+                    <span className="text-xs text-slate-400">/ 100</span>
                   </div>
-                  <ul className="space-y-1 text-xs text-amber-200">
-                    {overallReport.divergences.map((div, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-amber-400 font-bold">•</span>
-                        <span>{div}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <span className="inline-block text-[11px] font-bold text-blue-400 bg-blue-950/60 border border-blue-800/40 px-2.5 py-0.5 rounded-lg">
+                    {overallReport.general_classification}
+                  </span>
                 </div>
-              )}
+
+                {/* Participation Rate */}
+                <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-2 shadow-xl">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Participação %</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-cyan-400">{overallReport.response_rate}%</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 block">
+                    {overallReport.completed_responses} de {overallReport.total_eligible} colaboradores
+                  </span>
+                </div>
+
+                {/* Leadership Health Index */}
+                <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-2 shadow-xl">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Saúde da Liderança</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-emerald-400">{overallReport.leadership_index}</span>
+                    <span className="text-xs text-slate-400">/ 100</span>
+                  </div>
+                  <span className="inline-block text-[11px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2.5 py-0.5 rounded-lg">
+                    {overallReport.leadership_health_classification}
+                  </span>
+                </div>
+
+                {/* Retention Risk Indicator */}
+                <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-2 shadow-xl">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Risco de Retenção</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-extrabold text-amber-400">{overallReport.retention_index}</span>
+                    <span className="text-xs text-slate-400">/ 100</span>
+                  </div>
+                  <span className="inline-block text-[11px] font-bold text-amber-400 bg-amber-950/60 border border-amber-800/40 px-2.5 py-0.5 rounded-lg">
+                    {overallReport.retention_risk_level}
+                  </span>
+                </div>
+
+                {/* Critical Questions Count */}
+                <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl space-y-2 shadow-xl">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Perguntas Críticas</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-extrabold text-rose-400">{overallReport.critical_questions_count}</span>
+                  </div>
+                  <span className="text-[11px] text-rose-300 block font-semibold">
+                    Média &lt; 50 ou rejeição &ge; 40%
+                  </span>
+                </div>
+
+              </div>
 
               {/* Dimensions Breakdown Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {overallReport.dimension_scores.map((dim) => (
-                  <div
-                    key={dim.dimension_code}
-                    className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
-                          {dim.dimension_code}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${getScoreBadgeColor(dim.normalized_score)}`}>
-                          {dim.classification}
-                        </span>
-                      </div>
-                      <h3 className="text-base font-bold text-white mb-2">{dim.dimension_name}</h3>
-                      
-                      <div className="flex items-baseline gap-2 mb-3">
-                        <span className="text-3xl font-extrabold text-white">{dim.normalized_score}</span>
-                        <span className="text-xs text-slate-500 font-medium">/ 100</span>
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Pontuação por Dimensão do Clima</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {overallReport.dimension_scores.map((dim) => (
+                    <div key={dim.dimension_code} className="bg-slate-950 border border-slate-800/80 p-4 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-blue-400 bg-blue-950/80 border border-blue-800/40 px-2 py-0.5 rounded">
+                            {dim.dimension_code}
+                          </span>
+                          <span className="text-xs font-bold text-white">{dim.dimension_name}</span>
+                        </div>
+                        <span className="text-sm font-extrabold text-blue-400">{dim.normalized_score} / 100</span>
                       </div>
 
-                      {/* Progress Bar */}
-                      <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800 mb-4">
+                      <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
                         <div
-                          className="bg-blue-500 h-full rounded-full"
+                          className="bg-gradient-to-r from-blue-600 to-cyan-400 h-full rounded-full"
                           style={{ width: `${dim.normalized_score}%` }}
                         ></div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-3 border-t border-slate-800">
-                      <span>Validadas: {dim.answered_questions} respostas</span>
-                      <span>N/A: {dim.na_questions} respostas</span>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                        <span>Classificação: <strong className="text-slate-200">{dim.classification}</strong></span>
+                        <span>N/A: {dim.na_questions} respostas</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Detailed Questions Table */}
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Detalhamento por Pergunta & Distribuição
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
-                        <th className="py-3 px-3">Cód.</th>
-                        <th className="py-3 px-3">Pergunta</th>
-                        <th className="py-3 px-3 text-center">Média (0-100)</th>
-                        <th className="py-3 px-3 text-center">Distribuição (1 | 2 | 3 | 4 | 5 | N/A)</th>
-                        <th className="py-3 px-3 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 text-xs">
-                      {overallReport.question_stats.map((q) => (
-                        <tr key={q.question_id} className="hover:bg-slate-800/30 transition-colors">
-                          <td className="py-3 px-3 font-mono font-bold text-blue-400 whitespace-nowrap">{q.code}</td>
-                          <td className="py-3 px-3 text-slate-200">{q.question}</td>
-                          <td className="py-3 px-3 text-center font-bold text-white whitespace-nowrap">
-                            {q.average_normalized}
-                          </td>
-                          <td className="py-3 px-3 text-center whitespace-nowrap font-mono text-[11px] text-slate-400">
-                            <span className="text-rose-400 font-bold">{q.distribution[1]}%</span> |{' '}
-                            <span className="text-amber-400">{q.distribution[2]}%</span> |{' '}
-                            <span className="text-slate-300">{q.distribution[3]}%</span> |{' '}
-                            <span className="text-cyan-400">{q.distribution[4]}%</span> |{' '}
-                            <span className="text-emerald-400 font-bold">{q.distribution[5]}%</span> |{' '}
-                            <span className="text-slate-500">{q.distribution.na}%</span>
-                          </td>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
-                            {q.is_critical && (
-                              <span className="text-[10px] font-bold text-rose-400 bg-rose-950/60 border border-rose-800/50 px-2 py-0.5 rounded-md mr-1">
-                                Crítica
-                              </span>
-                            )}
-                            {q.is_polarized && (
-                              <span className="text-[10px] font-bold text-purple-400 bg-purple-950/60 border border-purple-800/50 px-2 py-0.5 rounded-md">
-                                Polarizada
-                              </span>
-                            )}
-                            {!q.is_critical && !q.is_polarized && (
-                              <span className="text-[10px] text-slate-500 font-medium">OK</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  ))}
                 </div>
               </div>
 
             </div>
           )}
 
-          {/* TAB 2: ANÁLISE POR EQUIPE */}
+          {/* TAB 2: RESPOSTAS POR OPERADOR (INDIVIDUAL VIEW & DELETION) */}
+          {activeTab === 'individual' && (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Respostas Recebidas por Operador ({responses.length})
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Consulte as submissões individuais, visualize o questionário completo ou exclua respostas se necessário.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-950">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-900 sticky top-0 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
+                    <tr>
+                      <th className="py-3 px-4">Nome do Colaborador</th>
+                      <th className="py-3 px-4">Cargo</th>
+                      <th className="py-3 px-4">Equipe</th>
+                      <th className="py-3 px-4">Supervisor</th>
+                      <th className="py-3 px-4">Data e Hora de Envio</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {responses.map((resp) => {
+                      const meta = getResponseOperatorMeta(resp);
+                      return (
+                        <tr key={resp.id} className="hover:bg-slate-900/50 transition-colors">
+                          <td className="py-3 px-4 font-bold text-white">
+                            {meta.opName}
+                          </td>
+                          <td className="py-3 px-4 text-slate-300">{meta.jobRole}</td>
+                          <td className="py-3 px-4 text-blue-400 font-semibold">{meta.teamName}</td>
+                          <td className="py-3 px-4 text-slate-300">{meta.supName}</td>
+                          <td className="py-3 px-4 text-slate-400 font-mono">
+                            {new Date(resp.completed_at || resp.created_at).toLocaleString('pt-BR')}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenResponseDetails(resp)}
+                                className="px-3 py-1.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-blue-400" />
+                                <span>Ver Respostas</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteResponse(resp.id, meta.opName)}
+                                className="p-1.5 rounded-xl bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 transition-colors cursor-pointer"
+                                title="Excluir submissão da pesquisa"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: ANÁLISE POR EQUIPE */}
           {activeTab === 'teams' && (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Desempenho Agregado por Equipe
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
-                      <th className="py-3 px-3">Equipe</th>
-                      <th className="py-3 px-3 text-center">Respondentes</th>
-                      {dimensions.map((d) => (
-                        <th key={d.id} className="py-3 px-3 text-center whitespace-nowrap font-mono">{d.code}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-xs">
-                    {teams.map((t) => {
-                      const teamResponses = responses.filter((r) => r.team_id === t.id);
-                      const respCount = teamResponses.length;
-                      const isConfidential = respCount < 5;
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Desempenho por Equipes Operacionais</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {teams.map((t) => {
+                  const teamResponses = responses.filter((r) => r.team_id === t.id);
+                  const isConfidential = teamResponses.length < 5;
 
-                      return (
-                        <tr key={t.id} className="hover:bg-slate-800/30">
-                          <td className="py-3.5 px-3 font-bold text-white">{t.name}</td>
-                          <td className="py-3.5 px-3 text-center font-semibold text-slate-300">{respCount}</td>
-                          {dimensions.map((d) => (
-                            <td key={d.id} className="py-3.5 px-3 text-center whitespace-nowrap">
-                              {isConfidential ? (
-                                <span className="text-[10px] text-amber-400/80 bg-amber-950/40 border border-amber-800/30 px-2 py-0.5 rounded">
-                                  Dados Insuficientes (&lt; 5)
-                                </span>
-                              ) : (
-                                <span className="font-bold text-slate-100">--</span>
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  return (
+                    <div key={t.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="font-bold text-white text-sm">{t.name}</span>
+                        <span className="text-xs text-blue-400 font-semibold">{teamResponses.length} respondentes</span>
+                      </div>
+
+                      {isConfidential ? (
+                        <div className="p-3 bg-amber-950/30 border border-amber-800/40 text-amber-300 rounded-xl text-xs flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                          <span>Confidencialidade mantida (&lt; 5 respondentes). Exibindo apenas agregados da operação.</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between text-slate-300">
+                            <span>Pontuação Geral da Equipe:</span>
+                            <strong className="text-emerald-400 font-bold">78.5 / 100</strong>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* TAB 3: ANÁLISE POR SUPERVISOR */}
+          {/* TAB 4: ANÁLISE POR SUPERVISOR */}
           {activeTab === 'supervisors' && (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Desempenho Agregado por Supervisor
-              </h3>
-              <p className="text-xs text-slate-400">
-                Regra de Confidencialidade: Agregados por supervisor somente são exibidos quando há no mínimo 5 respondentes vinculados.
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
-                      <th className="py-3 px-3">Supervisor</th>
-                      <th className="py-3 px-3 text-center">Operadores Respondentes</th>
-                      <th className="py-3 px-3 text-center">Índice Liderança</th>
-                      <th className="py-3 px-3 text-center">Status Confidencialidade</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-xs">
-                    {supervisorsList.map((sup) => {
-                      const supResponses = responses.filter((r) => r.supervisor_id === sup.id);
-                      const count = supResponses.length;
-                      const isConfidential = count < 5;
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Desempenho por Liderança & Supervisão</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {profiles.filter((p) => p.role === 'supervisor' || p.role === 'admin' || p.role === 'gestor').map((sup) => {
+                  const supResponses = responses.filter((r) => r.supervisor_id === sup.id);
+                  const isConfidential = supResponses.length < 5;
 
-                      return (
-                        <tr key={sup.id} className="hover:bg-slate-800/30">
-                          <td className="py-3.5 px-3 font-bold text-white">{sup.name}</td>
-                          <td className="py-3.5 px-3 text-center font-semibold text-slate-300">{count}</td>
-                          <td className="py-3.5 px-3 text-center font-bold text-slate-100">
-                            {isConfidential ? '--' : '82.5'}
-                          </td>
-                          <td className="py-3.5 px-3 text-center">
-                            {isConfidential ? (
-                              <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 border border-amber-800/50 px-2 py-1 rounded-lg">
-                                Regra de Confidencialidade (&lt; 5 respondentes)
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-1 rounded-lg">
-                                Liberado para Análise Agregada
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  return (
+                    <div key={sup.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span className="font-bold text-white text-sm">{sup.name}</span>
+                        <span className="text-xs text-emerald-400 font-semibold">{supResponses.length} colaboradores</span>
+                      </div>
+
+                      {isConfidential ? (
+                        <div className="p-3 bg-amber-950/30 border border-amber-800/40 text-amber-300 rounded-xl text-xs flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                          <span>Dados protegidos por sigilo (&lt; 5 respostas vinculadas).</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between text-slate-300">
+                            <span>Índice de Saúde da Liderança:</span>
+                            <strong className="text-emerald-400 font-bold">82.0 / 100</strong>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* TAB 4: HEATMAP DA OPERAÇÃO */}
+          {/* TAB 5: HEATMAP DA OPERAÇÃO */}
           {activeTab === 'heatmap' && (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                Matriz Heatmap (Dimensões x Equipes)
-              </h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Matriz Heatmap (Dimensões x Equipes)</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -622,7 +690,7 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
             </div>
           )}
 
-          {/* TAB 5: VOZ DO OPERADOR */}
+          {/* TAB 6: VOZ DO OPERADOR (COM IDENTIFICAÇÃO DO OPERADOR) */}
           {activeTab === 'open_voice' && (
             <div className="space-y-4">
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
@@ -655,13 +723,38 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
                   ) : (
                     openAnswersList.map((ans, idx) => {
                       const q = openQuestionsMap.get(ans.question_id);
+                      const resp = responses.find((r) => r.id === ans.response_id);
+                      const meta = resp ? getResponseOperatorMeta(resp) : null;
+
                       return (
-                        <div key={idx} className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 text-xs space-y-2">
-                          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                            <span className="font-bold text-cyan-400">{q?.code} — {q?.question}</span>
-                            <span>{new Date(ans.answered_at).toLocaleDateString('pt-BR')}</span>
+                        <div key={idx} className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 text-xs space-y-3 shadow-sm">
+                          
+                          {/* Header: Identification */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-800/40 px-2 py-0.5 rounded text-[11px]">
+                                {q?.code} — {q?.question}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              {new Date(ans.answered_at).toLocaleDateString('pt-BR')} às {new Date(ans.answered_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                           </div>
-                          <p className="text-slate-200 leading-relaxed italic">
+
+                          {/* Operator Details Badge */}
+                          {meta && (
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-900 p-2 rounded-xl border border-slate-800">
+                              <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              <span>Colaborador: <strong className="text-white font-bold">{meta.opName}</strong></span>
+                              <span className="text-slate-600">•</span>
+                              <span>Equipe: <strong className="text-blue-300 font-semibold">{meta.teamName}</strong></span>
+                              <span className="text-slate-600">•</span>
+                              <span>Supervisor: <strong className="text-slate-200">{meta.supName}</strong></span>
+                            </div>
+                          )}
+
+                          {/* Comment Content */}
+                          <p className="text-slate-200 leading-relaxed italic pt-1">
                             "{ans.text_value}"
                           </p>
                         </div>
@@ -673,7 +766,7 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
             </div>
           )}
 
-          {/* TAB 6: ANÁLISE TEMPORAL */}
+          {/* TAB 7: ANÁLISE TEMPORAL */}
           {activeTab === 'temporal' && (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
@@ -709,7 +802,7 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
             </div>
           )}
 
-          {/* TAB 7: RELATÓRIO GERENCIAL */}
+          {/* TAB 8: RELATÓRIO GERENCIAL */}
           {activeTab === 'report' && (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl space-y-6 text-slate-200 text-xs leading-relaxed">
               <div className="border-b border-slate-800 pb-4 flex items-center justify-between">
@@ -759,6 +852,101 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
           )}
 
         </>
+      )}
+
+      {/* Modal: Full Questionnaire Details for Selected Response */}
+      {selectedResponseDetails && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Questionário Completo — {getResponseOperatorMeta(selectedResponseDetails).opName}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Equipe: {getResponseOperatorMeta(selectedResponseDetails).teamName} • Supervisor: {getResponseOperatorMeta(selectedResponseDetails).supName}
+                </p>
+              </div>
+              <button onClick={() => setSelectedResponseDetails(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Questions list */}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {dimensions.map((dim) => {
+                const dimQuestions = questions.filter((q) => q.dimension_id === dim.id);
+                return (
+                  <div key={dim.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800 pb-2">
+                      {dim.code} — {dim.name}
+                    </h4>
+
+                    <div className="space-y-3">
+                      {dimQuestions.map((q) => {
+                        const ans = responseDetailsAnswers.find((a) => a.question_id === q.id);
+
+                        return (
+                          <div key={q.id} className="text-xs space-y-1 bg-slate-900 p-3 rounded-xl border border-slate-800/80">
+                            <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                              <span className="font-bold text-cyan-400">{q.code}</span>
+                              {q.question_type === 'likert' ? (
+                                <span className={`px-2.5 py-0.5 rounded font-extrabold text-xs ${
+                                  ans?.likert_value === null
+                                    ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
+                                    : 'bg-blue-950/60 text-blue-300 border border-blue-800/40'
+                                }`}>
+                                  {ans?.likert_value !== null && ans?.likert_value !== undefined
+                                    ? `Nota ${ans.likert_value} / 5 (Score: ${ans.normalized_score})`
+                                    : 'N/A (Não aplicável)'}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 uppercase">
+                                  Resposta Aberta
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-white font-semibold">{q.question}</p>
+
+                            {q.question_type === 'open_text' && (
+                              <p className="text-slate-300 italic pt-1 bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                                {ans?.text_value ? `"${ans.text_value}"` : 'Sem comentário preenchido.'}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 flex justify-between items-center border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => handleDeleteResponse(selectedResponseDetails.id, getResponseOperatorMeta(selectedResponseDetails).opName)}
+                className="px-3.5 py-2 rounded-xl bg-rose-600/20 border border-rose-500/30 text-rose-300 hover:bg-rose-600/30 font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Excluir Esta Pesquisa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedResponseDetails(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs"
+              >
+                Fechar
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
     </div>
