@@ -108,15 +108,14 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
   // --- Handlers: Create Supervisor ---
   const handleCreateSupervisor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSupName.trim() || !newSupEmail.trim()) return;
+    if (!newSupName.trim()) return;
     setSubmitting(true);
     setMessage(null);
 
     try {
-      const cleanEmail = newSupEmail.trim().toLowerCase();
-      // Upsert profile in climate_user_profiles
-      const { error: err } = await supabase.from('climate_user_profiles').upsert({
-        id: crypto.randomUUID(),
+      const cleanEmail = newSupEmail.trim() ? newSupEmail.trim().toLowerCase() : null;
+      // Insert profile in climate_user_profiles with auto-generated ID in DB
+      const { error: err } = await supabase.from('climate_user_profiles').insert({
         name: newSupName.trim(),
         email: cleanEmail,
         role: 'supervisor',
@@ -130,6 +129,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
       setMessage({ type: 'success', text: 'Supervisor cadastrado com sucesso!' });
       fetchManagementData();
     } catch (err: any) {
+      console.error(err);
       setMessage({ type: 'error', text: err.message || 'Erro ao cadastrar supervisor.' });
     } finally {
       setSubmitting(false);
@@ -600,7 +600,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Cadastrar Novo Supervisor</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Nome Completo</label>
+                  <label className="block text-[11px] text-slate-400 mb-1">Nome Completo *</label>
                   <input
                     type="text"
                     required
@@ -611,10 +611,9 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">E-mail de Trabalho</label>
+                  <label className="block text-[11px] text-slate-400 mb-1">E-mail (Opcional)</label>
                   <input
                     type="email"
-                    required
                     placeholder="carlos.supervisor@contactcenter.com"
                     value={newSupEmail}
                     onChange={(e) => setNewSupEmail(e.target.value)}
