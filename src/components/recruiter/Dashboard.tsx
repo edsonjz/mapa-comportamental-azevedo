@@ -7,11 +7,14 @@ import { ThemeToggle } from '../common/ThemeToggle';
 import { PROFILES_CATALOG } from '../../lib/profilesData';
 import { 
   Users, CheckCircle2, Clock, PlayCircle, Plus, Search, Filter, Copy, Check, Eye, Trash2, 
-  LogOut, History, RefreshCw, X, UserPlus, Link2, FileSpreadsheet, BookOpen, UserCheck
+  LogOut, History, RefreshCw, X, UserPlus, Link2, FileSpreadsheet, BookOpen, UserCheck,
+  BarChart3, Smile, FileText, Settings
 } from 'lucide-react';
 
 import { V2AssessmentReportModal } from './V2AssessmentReportModal';
 import { V2_JOB_PROFILES } from '../../lib/v2/jobProfilesV2';
+import { ClimateDashboard } from '../climate/ClimateDashboard';
+import { ClimateManagementModal } from '../climate/ClimateManagementModal';
 
 interface DashboardProps {
   user: any;
@@ -45,6 +48,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
   const [selectedAssessmentForReport, setSelectedAssessmentForReport] = useState<AssessmentWithCandidate | null>(null);
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  // Main Module Navigation State: 'behavioral' | 'climate' | 'reports' | 'management'
+  const [mainTab, setMainTab] = useState<'behavioral' | 'climate' | 'reports' | 'management'>('behavioral');
+  const [showClimateMgmtModal, setShowClimateMgmtModal] = useState(false);
 
   // New Candidate Form State
   const [newCandidateName, setNewCandidateName] = useState('');
@@ -373,10 +380,107 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
       </header>
 
+      {/* Main Navigation Sub-Header (AVALIAÇÃO COMPORTAMENTAL | PESQUISA DE CLIMA | RELATÓRIOS | GESTÃO) */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 py-2.5 shadow-sm sticky top-[73px] z-20">
+        <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto gap-2">
+          <div className="flex items-center gap-2">
+            {[
+              { id: 'behavioral', label: 'AVALIAÇÃO COMPORTAMENTAL', icon: Users },
+              { id: 'climate', label: 'PESQUISA DE CLIMA', icon: BarChart3 },
+              { id: 'reports', label: 'RELATÓRIOS', icon: FileText },
+              { id: 'management', label: 'GESTÃO', icon: Settings }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = mainTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setMainTab(tab.id as any);
+                    if (tab.id === 'management') {
+                      setShowClimateMgmtModal(true);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                    isActive
+                      ? 'bg-slate-900 text-white dark:bg-blue-600 dark:text-white shadow-md'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {mainTab === 'climate' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { window.location.href = `${window.location.pathname}?view=clima`; }}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Abrir formulário de resposta como operador"
+              >
+                <Smile className="w-3.5 h-3.5" />
+                <span>Responder como Operador</span>
+              </button>
+              <button
+                onClick={() => setShowClimateMgmtModal(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 text-xs font-semibold border border-blue-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Gerenciar Equipes</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Main Content Dashboard */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-8">
-        
-        {/* Executive Stats Bar */}
+
+        {/* Climate Survey View */}
+        {mainTab === 'climate' && (
+          <ClimateDashboard user={user} />
+        )}
+
+        {/* Reports Consolidated View */}
+        {mainTab === 'reports' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Relatórios Consolidados da Operação</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Selecione o módulo para visualizar a síntese executiva ou relatórios detalhados.
+              </p>
+            </div>
+            <ClimateDashboard user={user} />
+          </div>
+        )}
+
+        {/* Management View */}
+        {mainTab === 'management' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Painel de Gestão Organizacional</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Gerenciamento de equipes, supervisores, operadores e permissões de acesso.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowClimateMgmtModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Abrir Gestão de Equipes</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Behavioral Assessment View (Original intact functionality) */}
+        {mainTab === 'behavioral' && (
+          <>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all">
             <div className="flex items-center justify-between">
@@ -639,6 +743,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
             </div>
           )}
         </div>
+        </>
+      )}
+
+        <ClimateManagementModal
+          isOpen={showClimateMgmtModal}
+          onClose={() => setShowClimateMgmtModal(false)}
+        />
       </main>
 
       {/* Modal 1: Create Single Candidate & Assessment */}
