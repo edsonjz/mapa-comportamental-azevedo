@@ -473,29 +473,29 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[96vw] xl:max-w-7xl w-full p-5 sm:p-7 shadow-2xl relative overflow-hidden text-slate-100 h-[92vh] max-h-[950px] flex flex-col">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-[96vw] xl:max-w-7xl w-full p-5 sm:p-7 shadow-2xl relative overflow-hidden text-slate-900 dark:text-slate-100 h-[92vh] max-h-[950px] flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600/20 border border-blue-500/40 rounded-xl flex items-center justify-center text-blue-400">
+            <div className="w-10 h-10 bg-blue-500/10 dark:bg-blue-600/20 border border-blue-500/30 dark:border-blue-500/40 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Gestão Organizacional & Links da Pesquisa</h3>
-              <p className="text-xs text-slate-400">Mapeamento de colaboradores, supervisores, equipes e envio de links</p>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestão Organizacional & Links da Pesquisa</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Mapeamento de colaboradores, supervisores, equipes e envio de links</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Sub-header Tabs */}
-        <div className="flex items-center gap-2 mb-4 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+        <div className="flex items-center gap-2 mb-4 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
           {[
             { id: 'operators', label: `Operadores & Links (${operators.length})`, icon: Link2 },
             { id: 'teams', label: `Equipes (${teams.length})`, icon: Users },
@@ -510,7 +510,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-900'
                 }`}
               >
                 <Icon className="w-4 h-4" />
