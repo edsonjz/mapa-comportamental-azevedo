@@ -58,10 +58,27 @@ export interface ClimateUserProfile {
   supervisor_name?: string;
 }
 
+export interface ClimateOperator {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  job_role: string;
+  team_id?: string | null;
+  supervisor_id?: string | null;
+  access_token: string;
+  active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  team_name?: string;
+  supervisor_name?: string;
+}
+
 export interface ClimateResponse {
   id: string;
   survey_id: string;
-  operator_id: string;
+  operator_id?: string | null;
+  climate_operator_id?: string | null;
   team_id?: string | null;
   supervisor_id?: string | null;
   job_role?: string | null;

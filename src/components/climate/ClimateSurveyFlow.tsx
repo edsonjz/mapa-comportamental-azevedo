@@ -10,15 +10,16 @@ import {
   ChevronLeft,
   Send,
   AlertCircle,
-  Info
+  UserCheck
 } from 'lucide-react';
 
 interface ClimateSurveyFlowProps {
-  user: any;
+  user?: any;
+  operatorToken?: string | null;
   onFinished?: () => void;
 }
 
-export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFinished }) => {
+export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, operatorToken, onFinished }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -28,8 +29,17 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
   const [dimensions, setDimensions] = useState<ClimateDimension[]>([]);
   const [questions, setQuestions] = useState<ClimateQuestion[]>([]);
   
-  // User profile metadata in DB
-  const [userProfile, setUserProfile] = useState<any>(null);
+  // Operator profile metadata (either from Auth or Token)
+  const [operatorInfo, setOperatorInfo] = useState<{
+    id: string;
+    isTokenOperator: boolean;
+    name: string;
+    team_id?: string | null;
+    supervisor_id?: string | null;
+    job_role?: string;
+    team_name?: string;
+    supervisor_name?: string;
+  } | null>(null);
 
   // Flow State
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -37,35 +47,92 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
 
   useEffect(() => {
     loadSurveyData();
-  }, [user]);
+  }, [user, operatorToken]);
 
   const loadSurveyData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch user profile or create draft profile if missing
-      let { data: profile } = await supabase
-        .from('climate_user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      let resolvedOpInfo: any = null;
 
-      if (!profile) {
-        // Auto-create default profile for operator if doesn't exist
-        const { data: newProfile } = await supabase
-          .from('climate_user_profiles')
-          .insert({
-            id: user.id,
-            name: user.user_metadata?.name || user.email?.split('@')[0] || 'Operador',
-            email: user.email,
-            role: 'operador',
-            job_role: 'Operador de Atendimento'
-          })
+      // Mode A: Operator via Link Token (?clima_token=...)
+      if (operatorToken) {
+        const { data: opData, error: opErr } = await supabase
+          .from('climate_operators')
           .select('*')
-          .single();
-        profile = newProfile;
+          .eq('access_token', operatorToken)
+          .eq('active', true)
+          .maybeSingle();
+
+        if (opErr || !opData) {
+          setError('Link de pesquisa inválido, expirado ou não encontrado.');
+          setLoading(false);
+          return;
+        }
+
+        // Fetch team & supervisor name for display
+        let teamName = 'Sem Equipe';
+        let supervisorName = 'Sem Supervisor';
+
+        if (opData.team_id) {
+          const { data: teamData } = await supabase.from('climate_teams').select('name').eq('id', opData.team_id).maybeSingle();
+          if (teamData) teamName = teamData.name;
+        }
+
+        if (opData.supervisor_id) {
+          const { data: supData } = await supabase.from('climate_user_profiles').select('name').eq('id', opData.supervisor_id).maybeSingle();
+          if (supData) supervisorName = supData.name;
+        }
+
+        resolvedOpInfo = {
+          id: opData.id,
+          isTokenOperator: true,
+          name: opData.name,
+          team_id: opData.team_id,
+          supervisor_id: opData.supervisor_id,
+          job_role: opData.job_role || 'Operador de Atendimento',
+          team_name: teamName,
+          supervisor_name: supervisorName
+        };
       }
-      setUserProfile(profile);
+      // Mode B: Authenticated User
+      else if (user) {
+        let { data: profile } = await supabase
+          .from('climate_user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (!profile) {
+          const { data: newProfile } = await supabase
+            .from('climate_user_profiles')
+            .insert({
+              id: user.id,
+              name: user.user_metadata?.name || user.email?.split('@')[0] || 'Operador',
+              email: user.email,
+              role: 'operador',
+              job_role: 'Operador de Atendimento'
+            })
+            .select('*')
+            .single();
+          profile = newProfile;
+        }
+
+        resolvedOpInfo = {
+          id: user.id,
+          isTokenOperator: false,
+          name: profile.name,
+          team_id: profile.team_id,
+          supervisor_id: profile.supervisor_id,
+          job_role: profile.job_role || 'Operador de Atendimento'
+        };
+      } else {
+        setError('Acesso não autorizado à pesquisa de clima.');
+        setLoading(false);
+        return;
+      }
+
+      setOperatorInfo(resolvedOpInfo);
 
       // 2. Fetch Active Climate Survey
       const { data: activeSurvey, error: surveyErr } = await supabase
@@ -83,14 +150,20 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
       }
       setSurvey(activeSurvey);
 
-      // 3. Check if user already submitted this survey version
-      const { data: existingResp } = await supabase
+      // 3. Check if operator already submitted this survey version
+      let checkQuery = supabase
         .from('climate_responses')
         .select('*')
-        .eq('operator_id', user.id)
         .eq('survey_id', activeSurvey.id)
-        .eq('status', 'completed')
-        .maybeSingle();
+        .eq('status', 'completed');
+
+      if (resolvedOpInfo.isTokenOperator) {
+        checkQuery = checkQuery.eq('climate_operator_id', resolvedOpInfo.id);
+      } else {
+        checkQuery = checkQuery.eq('operator_id', resolvedOpInfo.id);
+      }
+
+      const { data: existingResp } = await checkQuery.maybeSingle();
 
       if (existingResp) {
         setSubmitted(true);
@@ -158,7 +231,6 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
       if (q.required) {
         const ans = answers[q.id];
         if (q.question_type === 'likert') {
-          // Likert required: must select 1-5 or N/A (null)
           if (!ans || (ans.likert === undefined)) return false;
         } else if (q.question_type === 'open_text') {
           if (!ans || !ans.text || ans.text.trim().length === 0) return false;
@@ -183,7 +255,7 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
   };
 
   const handleSubmit = async () => {
-    if (!survey || !userProfile) return;
+    if (!survey || !operatorInfo) return;
     setSubmitting(true);
     setError(null);
 
@@ -191,18 +263,25 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
       const now = new Date().toISOString();
 
       // 1. Insert Climate Response Header
+      const insertPayload: any = {
+        survey_id: survey.id,
+        team_id: operatorInfo.team_id || null,
+        supervisor_id: operatorInfo.supervisor_id || null,
+        job_role: operatorInfo.job_role || 'Operador de Atendimento',
+        started_at: now,
+        completed_at: now,
+        status: 'completed'
+      };
+
+      if (operatorInfo.isTokenOperator) {
+        insertPayload.climate_operator_id = operatorInfo.id;
+      } else {
+        insertPayload.operator_id = operatorInfo.id;
+      }
+
       const { data: responseHeader, error: respErr } = await supabase
         .from('climate_responses')
-        .insert({
-          survey_id: survey.id,
-          operator_id: user.id,
-          team_id: userProfile.team_id || null,
-          supervisor_id: userProfile.supervisor_id || null,
-          job_role: userProfile.job_role || 'Operador de Atendimento',
-          started_at: now,
-          completed_at: now,
-          status: 'completed'
-        })
+        .insert(insertPayload)
         .select('*')
         .single();
 
@@ -234,10 +313,15 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
       // 3. Log Audit
       await supabase.from('climate_audit_logs').insert({
         survey_id: survey.id,
-        operator_id: user.id,
-        actor_id: user.id,
+        operator_id: operatorInfo.isTokenOperator ? null : operatorInfo.id,
+        actor_id: operatorInfo.isTokenOperator ? null : operatorInfo.id,
         action: 'SUBMIT_CLIMATE_SURVEY',
-        details: { response_id: responseHeader.id, answered_count: answerRows.length }
+        details: {
+          response_id: responseHeader.id,
+          operator_name: operatorInfo.name,
+          is_token: operatorInfo.isTokenOperator,
+          answered_count: answerRows.length
+        }
       });
 
       setSubmitted(true);
@@ -272,9 +356,13 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
           </div>
           <h2 className="text-2xl font-extrabold mb-2 text-white">Pesquisa Enviada com Sucesso!</h2>
           <p className="text-slate-400 text-xs leading-relaxed mb-6">
-            Sua opinião é fundamental para a evolução do nosso ambiente de trabalho e da operação do 156.
+            Obrigado, <strong className="text-white">{operatorInfo?.name}</strong>! Sua opinião é fundamental para a evolução do nosso ambiente de trabalho e da operação do 156.
           </p>
           <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-left text-xs space-y-2 mb-6">
+            <div className="flex justify-between text-slate-400">
+              <span>Colaborador:</span>
+              <span className="font-semibold text-slate-200">{operatorInfo?.name}</span>
+            </div>
             <div className="flex justify-between text-slate-400">
               <span>Pesquisa:</span>
               <span className="font-semibold text-slate-200">{survey?.name || 'Clima 2026'}</span>
@@ -283,13 +371,9 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
               <span>Status:</span>
               <span className="font-semibold text-emerald-400">Concluída & Registrada</span>
             </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Data de Envio:</span>
-              <span className="font-semibold text-slate-200">{new Date().toLocaleDateString('pt-BR')}</span>
-            </div>
           </div>
           <p className="text-[11px] text-slate-500">
-            Suas respostas foram registradas com segurança e serão utilizadas para análises agregadas e melhoria contínua da operação.
+            Suas respostas foram salvos e registradas com segurança para consultas e análises agregadas da operação.
           </p>
         </div>
       </div>
@@ -299,10 +383,10 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
   if (error || dimensions.length === 0) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-3xl p-8 text-center shadow-2xl">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-rose-400 mb-2">Aviso de Acesso</h3>
-          <p className="text-slate-300 text-xs mb-6">{error || 'Não foi possível carregar a pesquisa.'}</p>
+        <div className="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-3xl p-8 text-center shadow-2xl space-y-4">
+          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+          <h3 className="text-lg font-bold text-rose-400">Aviso da Pesquisa</h3>
+          <p className="text-slate-300 text-xs leading-relaxed">{error || 'Não foi possível carregar a pesquisa.'}</p>
         </div>
       </div>
     );
@@ -334,13 +418,21 @@ export const ClimateSurveyFlow: React.FC<ClimateSurveyFlowProps> = ({ user, onFi
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col">
         
-        {/* Transparency Disclaimer Box */}
-        <div className="bg-blue-950/40 border border-blue-800/50 rounded-2xl p-4 mb-6 flex items-start gap-3 shadow-inner">
-          <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-          <div className="text-xs text-blue-200 leading-relaxed">
-            <span className="font-semibold text-blue-100 block mb-0.5">Sua participação é valiosa</span>
-            Suas respostas serão registradas para fins de análise organizacional e melhoria contínua da operação.
+        {/* Identified Operator Banner */}
+        <div className="bg-blue-950/40 border border-blue-800/50 rounded-2xl p-4 mb-6 flex items-center justify-between shadow-inner">
+          <div className="flex items-center gap-3">
+            <UserCheck className="w-5 h-5 text-blue-400 shrink-0" />
+            <div className="text-xs text-blue-200">
+              <span className="text-slate-400 font-normal">Identificação do Colaborador: </span>
+              <strong className="text-white font-bold">{operatorInfo?.name}</strong>
+              {operatorInfo?.team_name && (
+                <span className="text-blue-300 font-semibold ml-2">({operatorInfo.team_name})</span>
+              )}
+            </div>
           </div>
+          <span className="text-[10px] uppercase font-bold text-blue-400 bg-blue-900/40 border border-blue-700/40 px-2.5 py-1 rounded-lg">
+            {operatorInfo?.job_role}
+          </span>
         </div>
 
         {/* Progress Bar & Header */}

@@ -11,17 +11,23 @@ export const AppContent: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [tokenFromUrl, setTokenFromUrl] = useState<string | null>(null);
+  const [climaTokenFromUrl, setClimaTokenFromUrl] = useState<string | null>(null);
   const [isSurveyView, setIsSurveyView] = useState(false);
 
   useEffect(() => {
-    // 1. Check for token in URL query parameters e.g. ?token=abc123xyz
+    // 1. Check for tokens in URL query parameters e.g. ?token=abc123xyz or ?clima_token=abc123xyz
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const climaToken = urlParams.get('clima_token') || urlParams.get('survey_token');
     const viewMode = urlParams.get('view');
     const surveyMode = urlParams.get('clima') || urlParams.get('survey');
 
     if (token) {
       setTokenFromUrl(token);
+    }
+
+    if (climaToken) {
+      setClimaTokenFromUrl(climaToken);
     }
 
     if (viewMode === 'clima' || viewMode === 'survey' || surveyMode === 'true' || surveyMode === '1') {
@@ -58,6 +64,11 @@ export const AppContent: React.FC = () => {
   // A) Candidate Behavioral Route: Token is provided in URL
   if (tokenFromUrl) {
     return <CandidateAssessmentFlow token={tokenFromUrl} />;
+  }
+
+  // B) Climate Survey Exclusive Operator Link Route: clima_token is provided in URL
+  if (climaTokenFromUrl) {
+    return <ClimateSurveyFlow operatorToken={climaTokenFromUrl} onFinished={() => {}} />;
   }
 
   // B) Climate Survey Operator Flow (Authenticated user with ?view=clima or survey toggle)
