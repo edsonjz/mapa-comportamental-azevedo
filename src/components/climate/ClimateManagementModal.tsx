@@ -13,7 +13,9 @@ import {
   Search,
   Trash2,
   Link2,
-  ShieldCheck
+  ShieldCheck,
+  Pencil,
+  Settings
 } from 'lucide-react';
 
 interface ClimateManagementModalProps {
@@ -37,7 +39,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
   // Notifications
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Forms State
+  // Forms State - Add
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamSupervisorId, setNewTeamSupervisorId] = useState('');
   
@@ -51,9 +53,25 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
   const [newOpEmail, setNewOpEmail] = useState('');
   const [newOpPhone, setNewOpPhone] = useState('');
 
+  // Modals & Edit States
   const [showAddOpModal, setShowAddOpModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [editingOperator, setEditingOperator] = useState<ClimateOperator | null>(null);
+  
+  const [editOpName, setEditOpName] = useState('');
+  const [editOpJobRole, setEditOpJobRole] = useState('');
+  const [editOpTeamId, setEditOpTeamId] = useState('');
+  const [editOpSupervisorId, setEditOpSupervisorId] = useState('');
+  const [editOpEmail, setEditOpEmail] = useState('');
+  const [editOpPhone, setEditOpPhone] = useState('');
 
+  // Team Edit & Member Management State
+  const [editingTeam, setEditingTeam] = useState<ClimateTeam | null>(null);
+  const [editTeamName, setEditTeamName] = useState('');
+  const [editTeamSupervisorId, setEditTeamSupervisorId] = useState('');
+  const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
+  const [teamMemberSearch, setTeamMemberSearch] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -99,10 +117,87 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
       setMessage({ type: 'success', text: 'Equipe cadastrada com sucesso!' });
       fetchManagementData();
     } catch (err: any) {
+      console.error(err);
       setMessage({ type: 'error', text: err.message || 'Erro ao criar equipe.' });
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // --- Handlers: Edit Team & Manage Members ---
+  const openEditTeamModal = (team: ClimateTeam) => {
+    setEditingTeam(team);
+    setEditTeamName(team.name);
+    setEditTeamSupervisorId(team.supervisor_id || '');
+    
+    // Initial members of this team
+    const members = operators.filter((o) => o.team_id === team.id).map((o) => o.id);
+    setTeamMemberIds(members);
+    setTeamMemberSearch('');
+  };
+
+  const handleUpdateTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeam || !editTeamName.trim()) return;
+    setSubmitting(true);
+    setMessage(null);
+
+    try {
+      // 1. Update Team Info
+      const { error: teamErr } = await supabase
+        .from('climate_teams')
+        .update({
+          name: editTeamName.trim(),
+          supervisor_id: editTeamSupervisorId || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingTeam.id);
+
+      if (teamErr) throw teamErr;
+
+      // 2. Update Members:
+      // A) Set team_id for all operators currently checked
+      if (teamMemberIds.length > 0) {
+        const updatePayload: any = {
+          team_id: editingTeam.id,
+          updated_at: new Date().toISOString()
+        };
+        if (editTeamSupervisorId) {
+          updatePayload.supervisor_id = editTeamSupervisorId;
+        }
+
+        await supabase
+          .from('climate_operators')
+          .update(updatePayload)
+          .in('id', teamMemberIds);
+      }
+
+      // B) Remove team_id for operators previously in team but now unchecked
+      const previousMembers = operators.filter((o) => o.team_id === editingTeam.id).map((o) => o.id);
+      const removedMembers = previousMembers.filter((id) => !teamMemberIds.includes(id));
+
+      if (removedMembers.length > 0) {
+        await supabase
+          .from('climate_operators')
+          .update({ team_id: null, updated_at: new Date().toISOString() })
+          .in('id', removedMembers);
+      }
+
+      setEditingTeam(null);
+      setMessage({ type: 'success', text: 'Equipe e lista de membros atualizadas com sucesso!' });
+      fetchManagementData();
+    } catch (err: any) {
+      console.error(err);
+      setMessage({ type: 'error', text: err.message || 'Erro ao atualizar equipe.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleTeamMember = (operatorId: string) => {
+    setTeamMemberIds((prev) =>
+      prev.includes(operatorId) ? prev.filter((id) => id !== operatorId) : [...prev, operatorId]
+    );
   };
 
   // --- Handlers: Create Supervisor ---
@@ -114,7 +209,6 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
 
     try {
       const cleanEmail = newSupEmail.trim() ? newSupEmail.trim().toLowerCase() : null;
-      // Insert profile in climate_user_profiles with auto-generated ID in DB
       const { error: err } = await supabase.from('climate_user_profiles').insert({
         name: newSupName.trim(),
         email: cleanEmail,
@@ -166,6 +260,50 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
       fetchManagementData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Erro ao cadastrar operador.' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handlers: Edit Existing Operator ---
+  const openEditOperatorModal = (op: ClimateOperator) => {
+    setEditingOperator(op);
+    setEditOpName(op.name);
+    setEditOpJobRole(op.job_role || 'Operador de Atendimento');
+    setEditOpTeamId(op.team_id || '');
+    setEditOpSupervisorId(op.supervisor_id || '');
+    setEditOpEmail(op.email || '');
+    setEditOpPhone(op.phone || '');
+  };
+
+  const handleUpdateOperator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOperator || !editOpName.trim()) return;
+    setSubmitting(true);
+    setMessage(null);
+
+    try {
+      const { error: err } = await supabase
+        .from('climate_operators')
+        .update({
+          name: editOpName.trim(),
+          job_role: editOpJobRole.trim() || 'Operador de Atendimento',
+          team_id: editOpTeamId || null,
+          supervisor_id: editOpSupervisorId || null,
+          email: editOpEmail.trim() || null,
+          phone: editOpPhone.trim() || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingOperator.id);
+
+      if (err) throw err;
+
+      setEditingOperator(null);
+      setMessage({ type: 'success', text: `Cadastro de "${editOpName.trim()}" atualizado com sucesso!` });
+      fetchManagementData();
+    } catch (err: any) {
+      console.error(err);
+      setMessage({ type: 'error', text: err.message || 'Erro ao atualizar colaborador.' });
     } finally {
       setSubmitting(false);
     }
@@ -226,7 +364,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
           let targetSupId: string | null = null;
           if (supervisorName) {
             const existingSup = profiles.find(
-              (p) => p.name.toLowerCase().includes(String(supervisorName).toLowerCase()) || p.email.toLowerCase().includes(String(supervisorName).toLowerCase())
+              (p) => p.name.toLowerCase().includes(String(supervisorName).toLowerCase()) || (p.email && p.email.toLowerCase().includes(String(supervisorName).toLowerCase()))
             );
             if (existingSup) {
               targetSupId = existingSup.id;
@@ -299,6 +437,18 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
     }
   };
 
+  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+    if (!confirm(`Deseja realmente excluir a equipe "${teamName}"? Os colaboradores vinculados ficarão sem equipe.`)) return;
+    try {
+      await supabase.from('climate_teams').delete().eq('id', teamId);
+      setTeams((prev) => prev.filter((t) => t.id !== teamId));
+      setMessage({ type: 'success', text: 'Equipe removida.' });
+      fetchManagementData();
+    } catch (err: any) {
+      alert(`Erro ao remover equipe: ${err.message}`);
+    }
+  };
+
   if (!isOpen) return null;
 
   const supervisorsList = profiles.filter((p) => p.role === 'supervisor' || p.role === 'admin' || p.role === 'gestor');
@@ -314,6 +464,11 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
       (sup && sup.name.toLowerCase().includes(term)) ||
       (op.job_role && op.job_role.toLowerCase().includes(term))
     );
+  });
+
+  const filteredTeamMembers = operators.filter((op) => {
+    const term = teamMemberSearch.toLowerCase();
+    return op.name.toLowerCase().includes(term) || (op.job_role && op.job_role.toLowerCase().includes(term));
   });
 
   return (
@@ -511,14 +666,24 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                             </button>
                           </td>
                           <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteOperator(op.id, op.name)}
-                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 transition-colors cursor-pointer"
-                              title="Remover operador"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openEditOperatorModal(op)}
+                                className="p-1.5 rounded-lg bg-slate-900 hover:bg-blue-600/20 text-slate-400 hover:text-blue-400 border border-slate-800 transition-colors cursor-pointer"
+                                title="Editar dados, equipe e supervisor"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOperator(op.id, op.name)}
+                                className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 transition-colors cursor-pointer"
+                                title="Remover operador"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -583,8 +748,27 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                     <div>
                       <span className="font-bold text-white block text-sm mb-0.5">{team.name}</span>
                       <span className="text-[11px] text-slate-400">
-                        Supervisor: <strong className="text-slate-200">{sup ? sup.name : 'Nenhum'}</strong> • Operadores: <strong className="text-blue-400">{teamOpsCount}</strong>
+                        Supervisor: <strong className="text-slate-200">{sup ? sup.name : 'Nenhum'}</strong> • Colaboradores: <strong className="text-blue-400">{teamOpsCount}</strong>
                       </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditTeamModal(team)}
+                        className="px-3 py-1.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 hover:bg-blue-600/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        <Settings className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Gerenciar Membros & Supervisor</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTeam(team.id, team.name)}
+                        className="p-1.5 rounded-xl bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-800 transition-colors cursor-pointer"
+                        title="Excluir equipe"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -639,7 +823,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                     <div>
                       <span className="font-bold text-white block text-sm mb-0.5">{sup.name}</span>
                       <span className="text-[11px] text-slate-400">
-                        {sup.email} • Colaboradores vinculados: <strong className="text-emerald-400">{supOpsCount}</strong>
+                        {sup.email || 'Sem e-mail'} • Colaboradores vinculados: <strong className="text-emerald-400">{supOpsCount}</strong>
                       </span>
                     </div>
                   </div>
@@ -649,7 +833,7 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
           </div>
         )}
 
-        {/* Modal Manual Create Operator */}
+        {/* Modal 1: Manual Create Operator */}
         {showAddOpModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -689,7 +873,14 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                     <label className="block text-slate-400 mb-1 font-semibold">Equipe</label>
                     <select
                       value={newOpTeamId}
-                      onChange={(e) => setNewOpTeamId(e.target.value)}
+                      onChange={(e) => {
+                        const tid = e.target.value;
+                        setNewOpTeamId(tid);
+                        const selTeam = teams.find((t) => t.id === tid);
+                        if (selTeam && selTeam.supervisor_id && !newOpSupervisorId) {
+                          setNewOpSupervisorId(selTeam.supervisor_id);
+                        }
+                      }}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
                     >
                       <option value="">Sem Equipe</option>
@@ -750,6 +941,236 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                     className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold"
                   >
                     {submitting ? 'Salvando...' : 'Salvar & Gerar Link'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 2: Edit Existing Operator (Change Team, Supervisor & Info) */}
+        {editingOperator && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-bold text-white">Editar Cadastro do Colaborador</h3>
+                </div>
+                <button onClick={() => setEditingOperator(null)} className="text-slate-400 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateOperator} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Nome Completo *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editOpName}
+                    onChange={(e) => setEditOpName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Cargo</label>
+                  <input
+                    type="text"
+                    value={editOpJobRole}
+                    onChange={(e) => setEditOpJobRole(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Equipe</label>
+                    <select
+                      value={editOpTeamId}
+                      onChange={(e) => {
+                        const tid = e.target.value;
+                        setEditOpTeamId(tid);
+                        const selTeam = teams.find((t) => t.id === tid);
+                        if (selTeam && selTeam.supervisor_id) {
+                          setEditOpSupervisorId(selTeam.supervisor_id);
+                        }
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Sem Equipe</option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Supervisor</label>
+                    <select
+                      value={editOpSupervisorId}
+                      onChange={(e) => setEditOpSupervisorId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Sem Supervisor</option>
+                      {supervisorsList.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">E-mail</label>
+                    <input
+                      type="email"
+                      value={editOpEmail}
+                      onChange={(e) => setEditOpEmail(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Telefone</label>
+                    <input
+                      type="text"
+                      value={editOpPhone}
+                      onChange={(e) => setEditOpPhone(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingOperator(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400 hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                  >
+                    {submitting ? 'Atualizando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 3: Manage Team & Member Selection */}
+        {editingTeam && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-blue-400" />
+                  <h3 className="text-sm font-bold text-white">Gerenciar Equipe & Membros</h3>
+                </div>
+                <button onClick={() => setEditingTeam(null)} className="text-slate-400 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateTeam} className="space-y-4 text-xs flex-1 flex flex-col min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Nome da Equipe *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editTeamName}
+                      onChange={(e) => setEditTeamName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">Supervisor Responsável</label>
+                    <select
+                      value={editTeamSupervisorId}
+                      onChange={(e) => setEditTeamSupervisorId(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Sem Supervisor</option>
+                      {supervisorsList.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Member Selection List */}
+                <div className="flex-1 flex flex-col min-h-0 space-y-2 pt-2 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-xs uppercase tracking-wider">
+                      Membros da Equipe ({teamMemberIds.length} selecionados)
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Filtrar colaboradores..."
+                      value={teamMemberSearch}
+                      onChange={(e) => setTeamMemberSearch(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-[11px] text-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto border border-slate-800 rounded-2xl bg-slate-950 p-2 space-y-1">
+                    {filteredTeamMembers.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 text-center py-4">Nenhum operador encontrado.</p>
+                    ) : (
+                      filteredTeamMembers.map((op) => {
+                        const isMember = teamMemberIds.includes(op.id);
+                        return (
+                          <label
+                            key={op.id}
+                            className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                              isMember
+                                ? 'bg-blue-600/10 border-blue-500/40 text-white'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={isMember}
+                                onChange={() => toggleTeamMember(op.id)}
+                                className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-bold text-xs block">{op.name}</span>
+                                <span className="text-[10px] text-slate-400">{op.job_role}</span>
+                              </div>
+                            </div>
+                            {isMember && (
+                              <span className="text-[10px] font-bold text-blue-400 bg-blue-950/60 border border-blue-800/40 px-2 py-0.5 rounded-md">
+                                Incluído na Equipe
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTeam(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-800 text-slate-400 hover:bg-slate-800"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                  >
+                    {submitting ? 'Atualizando...' : 'Salvar Membros & Equipe'}
                   </button>
                 </div>
               </form>
