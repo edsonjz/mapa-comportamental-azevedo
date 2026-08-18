@@ -77,7 +77,7 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
         setSelectedSurveyId(surveyList[0].id);
       }
 
-      // 2. Fetch Teams & Profiles
+      // 2. Fetch Teams, Profiles & Operators
       const { data: teamList } = await supabase.from('climate_teams').select('*');
       if (teamList) setTeams(teamList);
 
@@ -94,6 +94,10 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
   const fetchSurveyReportData = async (surveyId: string) => {
     setLoading(true);
     try {
+      // Fetch Operators count for total eligible
+      const { data: opList } = await supabase.from('climate_operators').select('id');
+      const totalEligible = (opList && opList.length > 0) ? opList.length : (profiles.filter((p) => p.role === 'operador').length || 1);
+
       // Fetch Dimensions & Questions
       const { data: dimsData } = await supabase
         .from('climate_dimensions')
@@ -145,8 +149,6 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
       const loadedAnswers = ansData || [];
       setAnswers(loadedAnswers);
 
-      // Calculate Total Eligible Operators (Count profiles or responses)
-      const totalEligible = profiles.filter((p) => p.role === 'operador').length || loadedResponses.length || 1;
       const completedCount = loadedResponses.filter((r: any) => r.status === 'completed').length;
       const abandonedCount = loadedResponses.filter((r: any) => r.status === 'abandoned').length;
 
