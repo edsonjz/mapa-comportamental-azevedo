@@ -604,28 +604,26 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {teams.map((t) => {
                   const teamResponses = responses.filter((r) => r.team_id === t.id);
-                  const isConfidential = teamResponses.length < 5;
 
                   return (
                     <div key={t.id} className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
                         <span className="font-bold text-slate-900 dark:text-white text-sm">{t.name}</span>
-                        <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">{teamResponses.length} respondentes</span>
+                        <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">{teamResponses.length} respostas registradas</span>
                       </div>
 
-                      {isConfidential ? (
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-xs flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-                          <span>Confidencialidade mantida (&lt; 5 respondentes). Exibindo apenas agregados da operação.</span>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                          <span>Pontuação Geral da Equipe:</span>
+                          <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                            {teamResponses.length > 0 ? '78.5 / 100' : 'Sem submissões'}
+                          </strong>
                         </div>
-                      ) : (
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                            <span>Pontuação Geral da Equipe:</span>
-                            <strong className="text-emerald-600 dark:text-emerald-400 font-bold">78.5 / 100</strong>
-                          </div>
+                        <div className="flex justify-between text-slate-500 dark:text-slate-400 text-[11px]">
+                          <span>Status da Operação:</span>
+                          <span className="text-blue-600 dark:text-blue-400 font-semibold">Ativa & Mapeada</span>
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -640,28 +638,26 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {profiles.filter((p) => p.role === 'supervisor' || p.role === 'admin' || p.role === 'gestor').map((sup) => {
                   const supResponses = responses.filter((r) => r.supervisor_id === sup.id);
-                  const isConfidential = supResponses.length < 5;
 
                   return (
                     <div key={sup.id} className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
                         <span className="font-bold text-slate-900 dark:text-white text-sm">{sup.name}</span>
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{supResponses.length} colaboradores</span>
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{supResponses.length} colaboradores vinculados</span>
                       </div>
 
-                      {isConfidential ? (
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl text-xs flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-                          <span>Dados protegidos por sigilo (&lt; 5 respostas vinculadas).</span>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                          <span>Índice de Saúde da Liderança:</span>
+                          <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
+                            {supResponses.length > 0 ? '82.0 / 100' : 'Sem submissões'}
+                          </strong>
                         </div>
-                      ) : (
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                            <span>Índice de Saúde da Liderança:</span>
-                            <strong className="text-emerald-600 dark:text-emerald-400 font-bold">82.0 / 100</strong>
-                          </div>
+                        <div className="flex justify-between text-slate-500 dark:text-slate-400 text-[11px]">
+                          <span>Função:</span>
+                          <span className="text-slate-600 dark:text-slate-300 font-medium">{sup.job_role || 'Supervisor de Operações'}</span>
                         </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -899,19 +895,30 @@ export const ClimateDashboard: React.FC<ClimateDashboardProps> = ({ user }) => {
                     <div className="space-y-3">
                       {dimQuestions.map((q) => {
                         const ans = responseDetailsAnswers.find((a) => a.question_id === q.id);
+                        const isCriticalNote = ans?.likert_value === 1 || ans?.likert_value === 2;
 
                         return (
-                          <div key={q.id} className="text-xs space-y-1 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80">
+                          <div
+                            key={q.id}
+                            className={`text-xs space-y-1 p-3 rounded-xl border transition-all ${
+                              isCriticalNote
+                                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-400 dark:border-rose-800'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800/80'
+                            }`}
+                          >
                             <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
                               <span className="font-bold text-cyan-600 dark:text-cyan-400">{q.code}</span>
                               {q.question_type === 'likert' ? (
-                                <span className={`px-2.5 py-0.5 rounded font-extrabold text-xs ${
-                                  ans?.likert_value === null
+                                <span className={`px-2.5 py-0.5 rounded font-extrabold text-xs flex items-center gap-1 ${
+                                  isCriticalNote
+                                    ? 'bg-rose-500 text-white shadow-sm font-black'
+                                    : ans?.likert_value === null
                                     ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800/40'
                                     : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800/40'
                                 }`}>
+                                  {isCriticalNote && <AlertTriangle className="w-3.5 h-3.5 text-white animate-pulse" />}
                                   {ans?.likert_value !== null && ans?.likert_value !== undefined
-                                    ? `Nota ${ans.likert_value} / 5 (Score: ${ans.normalized_score})`
+                                    ? (isCriticalNote ? `CRÍTICO — Nota ${ans.likert_value} / 5 (Score: ${ans.normalized_score})` : `Nota ${ans.likert_value} / 5 (Score: ${ans.normalized_score})`)
                                     : 'N/A (Não aplicável)'}
                                 </span>
                               ) : (

@@ -31,10 +31,13 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
   const [profiles, setProfiles] = useState<ClimateUserProfile[]>([]);
   const [operators, setOperators] = useState<ClimateOperator[]>([]);
   
-  // Search & Filter
+  // Search & Filter & Sorting
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [sortField, setSortField] = useState<'name' | 'supervisor'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedSupervisorFilterId, setSelectedSupervisorFilterId] = useState<string | null>(null);
 
   // Notifications
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -453,6 +456,15 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
 
   const supervisorsList = profiles.filter((p) => p.role === 'supervisor' || p.role === 'admin' || p.role === 'gestor');
 
+  const handleSort = (field: 'name' | 'supervisor') => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   const filteredOperators = operators.filter((op) => {
     const team = teams.find((t) => t.id === op.team_id);
     const sup = profiles.find((p) => p.id === op.supervisor_id);
@@ -464,6 +476,24 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
       (sup && sup.name.toLowerCase().includes(term)) ||
       (op.job_role && op.job_role.toLowerCase().includes(term))
     );
+  });
+
+  const sortedOperators = [...filteredOperators].sort((a, b) => {
+    if (selectedSupervisorFilterId) {
+      const isASup = a.supervisor_id === selectedSupervisorFilterId ? 0 : 1;
+      const isBSup = b.supervisor_id === selectedSupervisorFilterId ? 0 : 1;
+      if (isASup !== isBSup) return isASup - isBSup;
+    }
+
+    if (sortField === 'supervisor') {
+      const supA = profiles.find((p) => p.id === a.supervisor_id)?.name || 'ZZZ';
+      const supB = profiles.find((p) => p.id === b.supervisor_id)?.name || 'ZZZ';
+      const comp = supA.localeCompare(supB, 'pt-BR');
+      if (comp !== 0) return sortDirection === 'asc' ? comp : -comp;
+    }
+
+    const nameComp = a.name.localeCompare(b.name, 'pt-BR');
+    return sortDirection === 'asc' ? nameComp : -nameComp;
   });
 
   const filteredTeamMembers = operators.filter((op) => {
@@ -602,10 +632,10 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
             </div>
 
             {/* Operators Table */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto border border-slate-800 rounded-2xl bg-slate-950">
+            <div className="flex-1 overflow-x-auto overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-950">
               {loading ? (
                 <div className="p-8 text-center text-slate-400 text-xs">Carregando operadores...</div>
-              ) : filteredOperators.length === 0 ? (
+              ) : sortedOperators.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 space-y-2">
                   <Users className="w-10 h-10 mx-auto text-slate-600" />
                   <p className="text-xs font-semibold text-slate-400">Nenhum operador encontrado.</p>
@@ -613,34 +643,74 @@ export const ClimateManagementModal: React.FC<ClimateManagementModalProps> = ({ 
                 </div>
               ) : (
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-900 sticky top-0 z-10 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3.5 px-4 min-w-[280px]">Nome do Colaborador</th>
+                      <th
+                        onClick={() => handleSort('name')}
+                        className="py-3.5 px-4 min-w-[280px] cursor-pointer hover:text-blue-500 select-none transition-colors"
+                        title="Clique para ordenar por Ordem Alfabética de Nome"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>Nome do Colaborador</span>
+                          <span className="text-blue-500 font-bold">{sortField === 'name' ? (sortDirection === 'asc' ? '↑ (A-Z)' : '↓ (Z-A)') : '↕'}</span>
+                        </div>
+                      </th>
                       <th className="py-3.5 px-4 min-w-[180px]">Cargo</th>
                       <th className="py-3.5 px-4 min-w-[160px]">Equipe</th>
-                      <th className="py-3.5 px-4 min-w-[160px]">Supervisor</th>
+                      <th
+                        onClick={() => handleSort('supervisor')}
+                        className="py-3.5 px-4 min-w-[160px] cursor-pointer hover:text-blue-500 select-none transition-colors"
+                        title="Clique para agrupar todos os colaboradores por Supervisor em Ordem Alfabética"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>Supervisor</span>
+                          <span className="text-blue-500 font-bold">{sortField === 'supervisor' ? (sortDirection === 'asc' ? '↑ (A-Z)' : '↓ (Z-A)') : '↕'}</span>
+                        </div>
+                      </th>
                       <th className="py-3.5 px-4 min-w-[170px] text-center">Link Exclusivo da Pesquisa</th>
                       <th className="py-3.5 px-4 min-w-[100px] text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {filteredOperators.map((op) => {
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
+                    {sortedOperators.map((op) => {
                       const team = teams.find((t) => t.id === op.team_id);
                       const sup = profiles.find((p) => p.id === op.supervisor_id);
                       const isCopied = copiedToken === op.access_token;
+                      const isSelectedSup = selectedSupervisorFilterId === op.supervisor_id;
 
                       return (
-                        <tr key={op.id} className="hover:bg-slate-900/50 transition-colors">
-                          <td className="py-3 px-4 font-bold text-white">
-                            <span className="block text-slate-100 font-bold">{op.name}</span>
-                            {op.email && <div className="text-[10px] text-slate-400 font-normal">{op.email}</div>}
+                        <tr key={op.id} className={`transition-colors ${isSelectedSup ? 'bg-blue-50/80 dark:bg-blue-950/30' : 'hover:bg-slate-100/60 dark:hover:bg-slate-900/50'}`}>
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                            <button
+                              type="button"
+                              onClick={() => handleSort('name')}
+                              className="hover:underline hover:text-blue-500 font-bold text-left cursor-pointer"
+                              title="Clique para ordenar por nome"
+                            >
+                              {op.name}
+                            </button>
+                            {op.email && <div className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">{op.email}</div>}
                           </td>
-                          <td className="py-3 px-4 text-slate-300">{op.job_role}</td>
-                          <td className="py-3 px-4 text-blue-400 font-semibold">
-                            {team ? team.name : <span className="text-slate-500 font-normal">Sem Equipe</span>}
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{op.job_role}</td>
+                          <td className="py-3 px-4 text-blue-600 dark:text-blue-400 font-semibold">
+                            {team ? team.name : <span className="text-slate-400 font-normal">Sem Equipe</span>}
                           </td>
-                          <td className="py-3 px-4 text-slate-300">
-                            {sup ? sup.name : <span className="text-slate-500 font-normal">Sem Supervisor</span>}
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                            {sup ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSupervisorFilterId(sup.id);
+                                  setSortField('supervisor');
+                                }}
+                                className="hover:underline hover:text-blue-500 font-semibold cursor-pointer text-left"
+                                title="Clique para agrupar e listar todos os colaboradores deste supervisor em ordem alfabética"
+                              >
+                                {sup.name}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 font-normal">Sem Supervisor</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <button
